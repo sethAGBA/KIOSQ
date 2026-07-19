@@ -1,15 +1,41 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Filter, Building2, User, ArrowUpRight, Phone, Mail } from 'lucide-react';
+import { Plus, Search, Filter, Building2, User, ArrowUpRight, Phone, Mail, X, Edit, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
+import toast from 'react-hot-toast';
 import { useAppStore } from '@/store/appStore';
+import { useAuthStore } from '@/store/authStore';
+import { clientsApi } from '@/lib/api';
 import { formatPrice, formatDate } from '@/lib/format';
+import type { Client } from '@/types';
+
+const EMPTY_FORM = {
+  nom: '',
+  prenom: '',
+  email: '',
+  telephone: '',
+  adresse: '',
+  ville: '',
+  pays: '',
+  secteurActivite: '',
+  typeClient: 'entreprise' as 'particulier' | 'entreprise',
+  notes: '',
+};
 
 export default function ClientsPage() {
-  const { clients } = useAppStore();
+  const { clients, addClient, updateClient, deleteClient } = useAppStore();
+  const { user } = useAuthStore();
   const navigate = useNavigate();
+
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'tous' | 'particulier' | 'entreprise'>('tous');
+  const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing] = useState<Client | null>(null);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [loading, setLoading] = useState(false);
+
+  const isAdmin = user?.role === 'admin';
+  const canEdit = user?.role === 'admin' || user?.role === 'commercial' || user?.role === 'gestionnaire';
 
   const filtered = useMemo(() => {
     return clients.filter((c) => {
@@ -26,6 +52,79 @@ export default function ClientsPage() {
   const totalCA = clients.reduce((s, c) => s + c.totalAchats, 0);
   const totalCreances = clients.reduce((s, c) => s + c.soldeCredit, 0);
 
+  const openCreate = () => {
+    setEditing(null);
+    setForm(EMPTY_FORM);
+    setShowModal(true);
+  };
+
+  const openEdit = (c: Client, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditing(c);
+    setForm({
+      nom: c.nom,
+      prenom: c.prenom ?? '',
+      email: c.email ?? '',
+      telephone: c.telephone ?? '',
+      adresse: c.adresse ?? '',
+      ville: c.ville ?? '',
+      pays: c.pays ?? '',
+      secteurActivite: c.secteurActivite ?? '',
+      typeClient: c.typeClient,
+      notes: c.notes ?? '',
+    });
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      if (editing) {
+        const updated = await clientsApi.update(editing.id, form).catch(() => null);
+        if (updated) {
+          updateClient(editing.id, updated);
+        } else {
+          // Fallback: update locally in mock mode
+          updateClient(editing.id, { ...form, updatedAt: new Date() });
+        }
+        toast.success('Client modifié');
+      } else {
+        const created = await clientsApi.create(form).catch(() => null);
+        if (created) {
+          addClient(created);
+        } else {
+          // Fallback: add locally in mock mode
+          addClient({
+            ...form,
+            id: `cl-${Date.now()}`,
+            code: `CLI-${String(clients.length + 1).padStart(3, '0')}`,
+            totalAchats: 0, soldeCredit: 0, nombreCommandes: 0,
+            actif: true, createdAt: new Date(), updatedAt: new Date(),
+          });
+        }
+        toast.success('Client créé');
+      }
+      setShowModal(false);
+    } catch {
+      toast.error('Une erreur est survenue');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (c: Client, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`Désactiver le client "${c.nom}" ?`)) return;
+    try {
+      await clientsApi.remove(c.id).catch(() => null);
+      deleteClient(c.id);
+      toast.success('Client désactivé');
+    } catch {
+      toast.error('Erreur lors de la suppression');
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-7xl">
       {/* Header */}
@@ -34,9 +133,11 @@ export default function ClientsPage() {
           <p className="text-[10px] font-mono tracking-widest uppercase mb-1" style={{ color: 'var(--color-ink-muted)' }}>CRM</p>
           <h1 className="text-3xl font-bold" style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>Clients</h1>
         </div>
-        <button className="btn-primary" onClick={() => navigate('/clients/nouveau')}>
-          <Plus size={15} /> Nouveau client
-        </button>
+        {canEdit && (
+          <button className="btn-primary" onClick={openCreate}>
+            <Plus size={15} /> Nouveau client
+          </button>
+        )}
       </div>
 
       {/* KPIs */}
@@ -158,7 +259,29 @@ export default function ClientsPage() {
                   </td>
                   <td style={{ color: 'var(--color-ink-muted)' }}>{formatDate(c.derniereCommande)}</td>
                   <td>
-                    <ArrowUpRight size={15} style={{ color: 'var(--color-gold)' }} />
+                    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                      {canEdit && (
+                        <button
+                          onClick={(e) => openEdit(c, e)}
+                          className="p-1.5 rounded-lg transition-colors hover:bg-gold/10"
+                          style={{ color: 'var(--color-ink-muted)' }}
+                          title="Modifier"
+                        >
+                          <Edit size={13} />
+                        </button>
+                      )}
+                      {isAdmin && (
+                        <button
+                          onClick={(e) => handleDelete(c, e)}
+                          className="p-1.5 rounded-lg transition-colors hover:bg-red-50"
+                          style={{ color: 'var(--color-ink-muted)' }}
+                          title="Désactiver"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                      <ArrowUpRight size={15} style={{ color: 'var(--color-gold)' }} />
+                    </div>
                   </td>
                 </tr>
               ))
@@ -166,6 +289,152 @@ export default function ClientsPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Modal Create / Edit */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-5 border-b" style={{ borderColor: 'var(--color-cream-dark)' }}>
+              <h3 className="font-semibold text-lg" style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
+                {editing ? 'Modifier le client' : 'Nouveau client'}
+              </h3>
+              <button onClick={() => setShowModal(false)} style={{ color: 'var(--color-ink-muted)' }}>
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+              {/* Type */}
+              <div>
+                <label className="label">Type de client</label>
+                <div className="flex gap-2 mt-1">
+                  {(['entreprise', 'particulier'] as const).map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, typeClient: t }))}
+                      className="flex-1 py-2 rounded-lg text-sm font-medium transition-colors capitalize"
+                      style={form.typeClient === t
+                        ? { backgroundColor: 'var(--color-gold)', color: 'white' }
+                        : { backgroundColor: 'var(--color-cream-dark)', color: 'var(--color-ink-muted)' }}
+                    >
+                      {t === 'entreprise' ? <><Building2 size={13} className="inline mr-1" />Entreprise</> : <><User size={13} className="inline mr-1" />Particulier</>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="label">Nom / Raison sociale *</label>
+                  <input
+                    required
+                    className="input"
+                    placeholder={form.typeClient === 'entreprise' ? 'Ex: Groupe Sonatel' : 'Nom de famille'}
+                    value={form.nom}
+                    onChange={e => setForm(f => ({ ...f, nom: e.target.value }))}
+                  />
+                </div>
+                {form.typeClient === 'particulier' && (
+                  <div className="col-span-2">
+                    <label className="label">Prénom</label>
+                    <input
+                      className="input"
+                      placeholder="Prénom"
+                      value={form.prenom}
+                      onChange={e => setForm(f => ({ ...f, prenom: e.target.value }))}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Email</label>
+                  <input
+                    type="email"
+                    className="input"
+                    placeholder="contact@exemple.com"
+                    value={form.email}
+                    onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="label">Téléphone</label>
+                  <input
+                    className="input"
+                    placeholder="+221 77 000 00 00"
+                    value={form.telephone}
+                    onChange={e => setForm(f => ({ ...f, telephone: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="label">Adresse</label>
+                <input
+                  className="input"
+                  placeholder="Adresse complète"
+                  value={form.adresse}
+                  onChange={e => setForm(f => ({ ...f, adresse: e.target.value }))}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Ville</label>
+                  <input
+                    className="input"
+                    placeholder="Dakar"
+                    value={form.ville}
+                    onChange={e => setForm(f => ({ ...f, ville: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="label">Pays</label>
+                  <input
+                    className="input"
+                    placeholder="Sénégal"
+                    value={form.pays}
+                    onChange={e => setForm(f => ({ ...f, pays: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {form.typeClient === 'entreprise' && (
+                <div>
+                  <label className="label">Secteur d'activité</label>
+                  <input
+                    className="input"
+                    placeholder="Ex: Télécommunications, Finance…"
+                    value={form.secteurActivite}
+                    onChange={e => setForm(f => ({ ...f, secteurActivite: e.target.value }))}
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="label">Notes (optionnel)</label>
+                <textarea
+                  className="input resize-none"
+                  rows={2}
+                  placeholder="Informations complémentaires…"
+                  value={form.notes}
+                  onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowModal(false)} className="btn-secondary flex-1">
+                  Annuler
+                </button>
+                <button type="submit" disabled={loading} className="btn-primary flex-1">
+                  {loading ? 'Enregistrement…' : editing ? 'Mettre à jour' : 'Créer le client'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

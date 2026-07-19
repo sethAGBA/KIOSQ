@@ -1,15 +1,39 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Truck, ArrowUpRight, Mail, Phone, Package } from 'lucide-react';
+import { Plus, Search, Truck, ArrowUpRight, Mail, Phone, Package, X, Edit, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
+import toast from 'react-hot-toast';
 import { useAppStore } from '@/store/appStore';
+import { useAuthStore } from '@/store/authStore';
+import { fournisseursApi } from '@/lib/api';
 import { formatPrice, formatDate, statutColor, statutLabel } from '@/lib/format';
+import type { Fournisseur } from '@/types';
+
+const EMPTY_FORM = {
+  nom: '',
+  contact: '',
+  email: '',
+  telephone: '',
+  adresse: '',
+  pays: '',
+  delaiLivraison: 7,
+  conditionsPaiement: '',
+  notes: '',
+};
 
 export default function FournisseursPage() {
-  const { fournisseurs, commandesFournisseurs } = useAppStore();
+  const { fournisseurs, commandesFournisseurs, addFournisseur, updateFournisseur } = useAppStore();
+  const { user } = useAuthStore();
   const navigate = useNavigate();
+
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'fournisseurs' | 'commandes'>('fournisseurs');
+  const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing] = useState<Fournisseur | null>(null);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [loading, setLoading] = useState(false);
+
+  const canEdit = user?.role === 'admin' || user?.role === 'gestionnaire';
 
   const filteredF = useMemo(() =>
     fournisseurs.filter(f =>
@@ -27,6 +51,66 @@ export default function FournisseursPage() {
   const totalAchats = fournisseurs.reduce((s, f) => s + f.totalAchats, 0);
   const cmdEnCours = commandesFournisseurs.filter(c => ['commandee', 'recu_partiel'].includes(c.statut)).length;
 
+  const openCreate = () => {
+    setEditing(null);
+    setForm(EMPTY_FORM);
+    setShowModal(true);
+  };
+
+  const openEdit = (f: Fournisseur, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditing(f);
+    setForm({
+      nom: f.nom,
+      contact: f.contact ?? '',
+      email: f.email ?? '',
+      telephone: f.telephone ?? '',
+      adresse: f.adresse ?? '',
+      pays: f.pays ?? '',
+      delaiLivraison: f.delaiLivraison ?? 7,
+      conditionsPaiement: f.conditionsPaiement ?? '',
+      notes: f.notes ?? '',
+    });
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      if (editing) {
+        const updated = await fournisseursApi.update(editing.id, form).catch(() => null);
+        if (updated) {
+          updateFournisseur(editing.id, updated);
+        } else {
+          updateFournisseur(editing.id, { ...form, updatedAt: new Date() });
+        }
+        toast.success('Fournisseur modifié');
+      } else {
+        const created = await fournisseursApi.create(form).catch(() => null);
+        if (created) {
+          addFournisseur(created);
+        } else {
+          addFournisseur({
+            ...form,
+            id: `f-${Date.now()}`,
+            soldeDette: 0,
+            totalAchats: 0,
+            actif: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+        }
+        toast.success('Fournisseur créé');
+      }
+      setShowModal(false);
+    } catch {
+      toast.error('Une erreur est survenue');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-7xl">
       {/* Header */}
@@ -36,10 +120,12 @@ export default function FournisseursPage() {
           <h1 className="text-3xl font-bold" style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>Fournisseurs</h1>
         </div>
         <div className="flex gap-2">
-          {tab === 'fournisseurs'
-            ? <button className="btn-primary" onClick={() => navigate('/fournisseurs/nouveau')}><Plus size={15} /> Nouveau fournisseur</button>
-            : <button className="btn-primary" onClick={() => navigate('/fournisseurs/commande/nouvelle')}><Plus size={15} /> Nouvelle commande</button>
-          }
+          {tab === 'fournisseurs' && canEdit && (
+            <button className="btn-primary" onClick={openCreate}><Plus size={15} /> Nouveau fournisseur</button>
+          )}
+          {tab === 'commandes' && canEdit && (
+            <button className="btn-primary" onClick={() => navigate('/fournisseurs/commande/nouvelle')}><Plus size={15} /> Nouvelle commande</button>
+          )}
         </div>
       </div>
 
@@ -118,7 +204,21 @@ export default function FournisseursPage() {
                       ? <span className="badge badge-warning font-semibold">{formatPrice(f.soldeDette)}</span>
                       : <span className="badge badge-success">soldé</span>}
                   </td>
-                  <td><ArrowUpRight size={14} style={{ color: 'var(--color-gold)' }} /></td>
+                  <td onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center gap-1">
+                      {canEdit && (
+                        <button
+                          onClick={(e) => openEdit(f, e)}
+                          className="p-1.5 rounded-lg transition-colors hover:bg-gold/10"
+                          style={{ color: 'var(--color-ink-muted)' }}
+                          title="Modifier"
+                        >
+                          <Edit size={13} />
+                        </button>
+                      )}
+                      <ArrowUpRight size={14} style={{ color: 'var(--color-gold)' }} />
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -147,6 +247,119 @@ export default function FournisseursPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Modal Create / Edit */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-5 border-b" style={{ borderColor: 'var(--color-cream-dark)' }}>
+              <h3 className="font-semibold text-lg" style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
+                {editing ? 'Modifier le fournisseur' : 'Nouveau fournisseur'}
+              </h3>
+              <button onClick={() => setShowModal(false)} style={{ color: 'var(--color-ink-muted)' }}><X size={18} /></button>
+            </div>
+            <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+              <div>
+                <label className="label">Nom du fournisseur *</label>
+                <input
+                  required
+                  className="input"
+                  placeholder="Ex: TechDistrib SA"
+                  value={form.nom}
+                  onChange={e => setForm(f => ({ ...f, nom: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="label">Contact (personne)</label>
+                <input
+                  className="input"
+                  placeholder="Prénom Nom du contact"
+                  value={form.contact}
+                  onChange={e => setForm(f => ({ ...f, contact: e.target.value }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Email</label>
+                  <input
+                    type="email"
+                    className="input"
+                    placeholder="contact@exemple.com"
+                    value={form.email}
+                    onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="label">Téléphone</label>
+                  <input
+                    className="input"
+                    placeholder="+221 33 800 00 00"
+                    value={form.telephone}
+                    onChange={e => setForm(f => ({ ...f, telephone: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Adresse</label>
+                  <input
+                    className="input"
+                    placeholder="Adresse"
+                    value={form.adresse}
+                    onChange={e => setForm(f => ({ ...f, adresse: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="label">Pays</label>
+                  <input
+                    className="input"
+                    placeholder="Sénégal"
+                    value={form.pays}
+                    onChange={e => setForm(f => ({ ...f, pays: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Délai de livraison (jours)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="input"
+                    value={form.delaiLivraison}
+                    onChange={e => setForm(f => ({ ...f, delaiLivraison: +e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="label">Conditions de paiement</label>
+                  <input
+                    className="input"
+                    placeholder="Ex: 30 jours"
+                    value={form.conditionsPaiement}
+                    onChange={e => setForm(f => ({ ...f, conditionsPaiement: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="label">Notes (optionnel)</label>
+                <textarea
+                  className="input resize-none"
+                  rows={2}
+                  placeholder="Notes internes…"
+                  value={form.notes}
+                  onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowModal(false)} className="btn-secondary flex-1">Annuler</button>
+                <button type="submit" disabled={loading} className="btn-primary flex-1">
+                  {loading ? 'Enregistrement…' : editing ? 'Mettre à jour' : 'Créer'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

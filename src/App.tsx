@@ -10,10 +10,13 @@ import DashboardPage from '@/pages/DashboardPage';
 import ClientsPage from '@/pages/clients/ClientsPage';
 import ClientDetailPage from '@/pages/clients/ClientDetailPage';
 import ProduitsPage from '@/pages/produits/ProduitsPage';
+import ProduitDetailPage from '@/pages/produits/ProduitDetailPage';
 import CommandesPage from '@/pages/commandes/CommandesPage';
+import CommandeDetailPage from '@/pages/commandes/CommandeDetailPage';
 import FacturationPage from '@/pages/facturation/FacturationPage';
 import FactureDetailPage from '@/pages/facturation/FactureDetailPage';
 import FournisseursPage from '@/pages/fournisseurs/FournisseursPage';
+import FournisseurDetailPage from '@/pages/fournisseurs/FournisseurDetailPage';
 import RapportsPage from '@/pages/rapports/RapportsPage';
 import UtilisateursPage from '@/pages/utilisateurs/UtilisateursPage';
 import ConfigurationPage from '@/pages/configuration/ConfigurationPage';
@@ -48,9 +51,11 @@ export default function App() {
 
           {/* Produits */}
           <Route path="/produits" element={<ProduitsPage />} />
+          <Route path="/produits/:id" element={<ProduitDetailPage />} />
 
           {/* Commandes & Devis */}
           <Route path="/commandes" element={<CommandesPage />} />
+          <Route path="/commandes/:id" element={<CommandeDetailPage />} />
 
           {/* Facturation */}
           <Route path="/facturation" element={<FacturationPage />} />
@@ -58,6 +63,7 @@ export default function App() {
 
           {/* Fournisseurs */}
           <Route path="/fournisseurs" element={<FournisseursPage />} />
+          <Route path="/fournisseurs/:id" element={<FournisseurDetailPage />} />
 
           {/* Rapports */}
           <Route path="/rapports" element={<RapportsPage />} />

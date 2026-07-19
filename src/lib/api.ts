@@ -107,3 +107,13 @@ export const categoriesApi = {
   create: (nom: string, description?: string, couleur?: string) =>
     post<import('@/types').Categorie>('/api/categories', { nom, description, couleur }),
 };
+
+// ── Utilisateurs ──────────────────────────────────────────
+export const utilisateursApi = {
+  list:     () => get<import('@/types').AppUser[]>('/api/utilisateurs'),
+  create:   (data: { email: string; password: string; nom: string; prenom: string; role: string; telephone?: string }) =>
+    post<import('@/types').AppUser>('/api/utilisateurs', data),
+  update:   (id: string, data: Partial<import('@/types').AppUser>) =>
+    patch<import('@/types').AppUser>(`/api/utilisateurs/${id}`, data),
+  remove:   (id: string) => del<{ message: string }>(`/api/utilisateurs/${id}`),
+};

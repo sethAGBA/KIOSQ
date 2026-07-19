@@ -1,15 +1,28 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Mail, Phone, MapPin, Building2, User, Edit, ShoppingCart, FileText } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, MapPin, Building2, User, Edit, ShoppingCart, FileText, X } from 'lucide-react';
 import clsx from 'clsx';
+import { useState } from 'react';
+import toast from 'react-hot-toast';
 import { useAppStore } from '@/store/appStore';
+import { useAuthStore } from '@/store/authStore';
+import { clientsApi } from '@/lib/api';
 import { formatPrice, formatDate, statutColor, statutLabel } from '@/lib/format';
+import type { Client } from '@/types';
 
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { clients, commandes, factures } = useAppStore();
+  const { clients, commandes, factures, updateClient } = useAppStore();
+  const { user } = useAuthStore();
+
+  const [showEdit, setShowEdit] = useState(false);
+  const [form, setForm] = useState<Partial<Client>>({});
+  const [saving, setSaving] = useState(false);
+
+  const canEdit = user?.role === 'admin' || user?.role === 'commercial' || user?.role === 'gestionnaire';
 
   const client = clients.find((c) => c.id === id);
+
   if (!client) return (
     <div className="flex flex-col items-center justify-center h-64 gap-3">
       <p style={{ color: 'var(--color-ink-muted)' }}>Client introuvable.</p>
@@ -19,6 +32,37 @@ export default function ClientDetailPage() {
 
   const cmdClient = commandes.filter((c) => c.clientId === id);
   const facClient = factures.filter((f) => f.clientId === id);
+
+  const openEdit = () => {
+    setForm({
+      nom: client.nom,
+      prenom: client.prenom,
+      email: client.email,
+      telephone: client.telephone,
+      adresse: client.adresse,
+      ville: client.ville,
+      pays: client.pays,
+      secteurActivite: client.secteurActivite,
+      typeClient: client.typeClient,
+      notes: client.notes,
+    });
+    setShowEdit(true);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const updated = await clientsApi.update(client.id, form).catch(() => null);
+      updateClient(client.id, updated ?? { ...form, updatedAt: new Date() });
+      toast.success('Client modifié');
+      setShowEdit(false);
+    } catch {
+      toast.error('Erreur lors de la sauvegarde');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -57,9 +101,11 @@ export default function ClientDetailPage() {
               <p className="text-sm font-mono mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>{client.code}</p>
             </div>
           </div>
-          <button className="btn-secondary" onClick={() => navigate(`/clients/${id}/modifier`)}>
-            <Edit size={14} /> Modifier
-          </button>
+          {canEdit && (
+            <button className="btn-secondary" onClick={openEdit}>
+              <Edit size={14} /> Modifier
+            </button>
+          )}
         </div>
 
         {/* Info grid */}
@@ -95,6 +141,13 @@ export default function ClientDetailPage() {
             </div>
           )}
         </div>
+
+        {client.notes && (
+          <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--color-cream-dark)' }}>
+            <p className="label mb-1">Notes</p>
+            <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>{client.notes}</p>
+          </div>
+        )}
       </div>
 
       {/* KPIs */}
@@ -117,9 +170,20 @@ export default function ClientDetailPage() {
 
       {/* Commandes */}
       <div className="card p-0 overflow-hidden">
-        <div className="flex items-center gap-2 px-5 py-4" style={{ borderBottom: '1px solid var(--color-cream-dark)' }}>
-          <ShoppingCart size={15} style={{ color: 'var(--color-gold)' }} />
-          <h2 className="font-semibold text-sm" style={{ color: 'var(--color-ink)' }}>Commandes ({cmdClient.length})</h2>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--color-cream-dark)' }}>
+          <div className="flex items-center gap-2">
+            <ShoppingCart size={15} style={{ color: 'var(--color-gold)' }} />
+            <h2 className="font-semibold text-sm" style={{ color: 'var(--color-ink)' }}>Commandes ({cmdClient.length})</h2>
+          </div>
+          {canEdit && (
+            <button
+              className="text-xs font-medium"
+              style={{ color: 'var(--color-gold)' }}
+              onClick={() => navigate('/commandes')}
+            >
+              + Nouvelle commande
+            </button>
+          )}
         </div>
         <table className="table-auto w-full">
           <thead>
@@ -143,9 +207,20 @@ export default function ClientDetailPage() {
 
       {/* Factures */}
       <div className="card p-0 overflow-hidden">
-        <div className="flex items-center gap-2 px-5 py-4" style={{ borderBottom: '1px solid var(--color-cream-dark)' }}>
-          <FileText size={15} style={{ color: 'var(--color-gold)' }} />
-          <h2 className="font-semibold text-sm" style={{ color: 'var(--color-ink)' }}>Factures ({facClient.length})</h2>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--color-cream-dark)' }}>
+          <div className="flex items-center gap-2">
+            <FileText size={15} style={{ color: 'var(--color-gold)' }} />
+            <h2 className="font-semibold text-sm" style={{ color: 'var(--color-ink)' }}>Factures ({facClient.length})</h2>
+          </div>
+          {canEdit && (
+            <button
+              className="text-xs font-medium"
+              style={{ color: 'var(--color-gold)' }}
+              onClick={() => navigate('/facturation')}
+            >
+              + Nouvelle facture
+            </button>
+          )}
         </div>
         <table className="table-auto w-full">
           <thead>
@@ -167,6 +242,70 @@ export default function ClientDetailPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Edit Modal */}
+      {showEdit && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-5 border-b" style={{ borderColor: 'var(--color-cream-dark)' }}>
+              <h3 className="font-semibold text-lg" style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
+                Modifier le client
+              </h3>
+              <button onClick={() => setShowEdit(false)} style={{ color: 'var(--color-ink-muted)' }}><X size={18} /></button>
+            </div>
+            <form onSubmit={handleSave} className="px-6 py-5 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="label">Nom / Raison sociale *</label>
+                  <input required className="input" value={form.nom ?? ''} onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} />
+                </div>
+                {client.typeClient === 'particulier' && (
+                  <div className="col-span-2">
+                    <label className="label">Prénom</label>
+                    <input className="input" value={form.prenom ?? ''} onChange={e => setForm(f => ({ ...f, prenom: e.target.value }))} />
+                  </div>
+                )}
+                <div>
+                  <label className="label">Email</label>
+                  <input type="email" className="input" value={form.email ?? ''} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="label">Téléphone</label>
+                  <input className="input" value={form.telephone ?? ''} onChange={e => setForm(f => ({ ...f, telephone: e.target.value }))} />
+                </div>
+                <div className="col-span-2">
+                  <label className="label">Adresse</label>
+                  <input className="input" value={form.adresse ?? ''} onChange={e => setForm(f => ({ ...f, adresse: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="label">Ville</label>
+                  <input className="input" value={form.ville ?? ''} onChange={e => setForm(f => ({ ...f, ville: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="label">Pays</label>
+                  <input className="input" value={form.pays ?? ''} onChange={e => setForm(f => ({ ...f, pays: e.target.value }))} />
+                </div>
+                {client.typeClient === 'entreprise' && (
+                  <div className="col-span-2">
+                    <label className="label">Secteur d'activité</label>
+                    <input className="input" value={form.secteurActivite ?? ''} onChange={e => setForm(f => ({ ...f, secteurActivite: e.target.value }))} />
+                  </div>
+                )}
+                <div className="col-span-2">
+                  <label className="label">Notes</label>
+                  <textarea className="input resize-none" rows={2} value={form.notes ?? ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowEdit(false)} className="btn-secondary flex-1">Annuler</button>
+                <button type="submit" disabled={saving} className="btn-primary flex-1">
+                  {saving ? 'Enregistrement…' : 'Sauvegarder'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
