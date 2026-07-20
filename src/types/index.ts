@@ -40,6 +40,14 @@ export interface Categorie {
   createdAt: Date;
 }
 
+// ── Unité de mesure ──────────────────────────────────────
+export interface Unite {
+  id: string;
+  nom: string;
+  abreviation: string;
+  createdAt: Date;
+}
+
 // ── Fournisseur ──────────────────────────────────────────
 export interface Fournisseur {
   id: string;

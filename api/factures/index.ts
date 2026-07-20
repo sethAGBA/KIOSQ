@@ -3,7 +3,7 @@ import { desc } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { getDb } from '../../db/client';
-import { factures, clients } from '../../db/schema';
+import { factures, clients, produits } from '../../db/schema';
 import { requireAuth, handleOptions } from '../_lib/auth';
 import { ok, err, numericRows, numericRow } from '../_lib/response';
 import { eq } from 'drizzle-orm';
@@ -59,6 +59,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const [client] = await db.select().from(clients).where(eq(clients.id, parsed.data.clientId)).limit(1);
       if (!client) return err(res, 'Client introuvable', 404);
+
+      // Validate stock levels first
+      const productUpdates: { prodId: string; newStock: number }[] = [];
+      for (const line of parsed.data.lignes) {
+        const ref = line.designation.split(' — ')[0]?.trim();
+        if (ref) {
+          const [prod] = await db.select().from(produits).where(eq(produits.reference, ref)).limit(1);
+          if (!prod) {
+            return err(res, `Produit avec la référence ${ref} introuvable`, 404);
+          }
+          if (prod.stockActuel < line.quantite) {
+            return err(res, `Stock insuffisant pour ${prod.designation} (Disponible: ${prod.stockActuel}, Demandé: ${line.quantite})`, 400);
+          }
+          productUpdates.push({ prodId: prod.id, newStock: prod.stockActuel - line.quantite });
+        }
+      }
+
+      // Deduct stock in DB
+      for (const update of productUpdates) {
+        await db.update(produits)
+          .set({ stockActuel: update.newStock, updatedAt: new Date() })
+          .where(eq(produits.id, update.prodId));
+      }
 
       const all = await db.select().from(factures);
       const year = new Date().getFullYear();

@@ -4,14 +4,16 @@ import clsx from 'clsx';
 import {
   LayoutDashboard, Users, Package, ShoppingCart, FileText,
   Truck, BarChart3, Settings, Bell, LogOut, ChevronRight,
-  Menu, X, TrendingUp, UserCog, Building2,
+  Menu, X, TrendingUp, UserCog, Building2, Store,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useAppStore, selectUnreadCount } from '@/store/appStore';
+import { formatPrice } from '@/lib/format';
 import NotificationDrawer from './NotificationDrawer';
 
 const NAV = [
   { to: '/dashboard',    label: 'Tableau de bord', icon: LayoutDashboard, roles: ['admin','commercial','gestionnaire','comptable','lecteur'] },
+  { to: '/pos',          label: 'Caisse / POS',    icon: Store,           roles: ['admin','commercial','gestionnaire'] },
   { to: '/clients',      label: 'Clients',          icon: Users,           roles: ['admin','commercial','gestionnaire','lecteur'] },
   { to: '/produits',     label: 'Catalogue & Stock', icon: Package,        roles: ['admin','commercial','gestionnaire','lecteur'] },
   { to: '/commandes',    label: 'Commandes & Devis', icon: ShoppingCart,   roles: ['admin','commercial','gestionnaire','lecteur'] },
@@ -26,8 +28,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const unread = useAppStore(selectUnreadCount);
+  const commandes = useAppStore(s => s.commandes);
   const [notifOpen, setNotifOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Live CA for current month
+  const caMois = (() => {
+    const now = new Date();
+    return commandes
+      .filter(c => {
+        const d = new Date(c.createdAt);
+        return c.type === 'commande'
+          && d.getMonth() === now.getMonth()
+          && d.getFullYear() === now.getFullYear();
+      })
+      .reduce((s, c) => s + c.totalTTC, 0);
+  })();
+
+  const moisLabel = new Date().toLocaleDateString('fr-FR', { month: 'long' });
+  const moisLabelCap = moisLabel.charAt(0).toUpperCase() + moisLabel.slice(1);
 
   const handleLogout = () => {
     logout();
@@ -210,7 +229,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               style={{ backgroundColor: 'var(--color-gold-pale)', color: 'var(--color-gold)' }}
             >
               <TrendingUp size={12} />
-              <span>CA Juin : 8 200 000 F</span>
+              <span>CA {moisLabelCap} : {formatPrice(caMois)}</span>
             </div>
           </div>
         </header>

@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { getDb } from '../../db/client';
-import { factures } from '../../db/schema';
+import { factures, produits } from '../../db/schema';
 import { requireAuth, handleOptions } from '../_lib/auth';
 import { ok, err, numericRow } from '../_lib/response';
 
@@ -37,16 +37,56 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === 'PATCH') {
+    if (!['admin', 'comptable', 'gestionnaire'].includes(ctx.role)) {
+      return err(res, 'Accès refusé', 403);
+    }
+
     const parsed = PatchSchema.safeParse(req.body);
     if (!parsed.success) return err(res, 'Données invalides', 422);
+
+    if (parsed.data.statut === 'annulee' && !['admin', 'gestionnaire'].includes(ctx.role)) {
+      return err(res, 'Accès refusé : rôle insuffisant pour annuler une vente', 403);
+    }
+
     try {
+      // 1. Fetch current status to check if it's changing to 'annulee'
+      const [existing] = await db.select().from(factures).where(eq(factures.id, id)).limit(1);
+      if (!existing) return err(res, 'Facture introuvable', 404);
+
+      const isCancelling = parsed.data.statut === 'annulee' && existing.statut !== 'annulee';
+
+      // 2. Perform the update
       const [row] = await db.update(factures)
         .set({ ...parsed.data, updatedAt: new Date() })
         .where(eq(factures.id, id))
         .returning();
-      if (!row) return err(res, 'Facture introuvable', 404);
+
+      // 3. If cancelling, restore stock
+      if (isCancelling) {
+        const lignes = (existing.lignes as any[]) || [];
+        for (const ligne of lignes) {
+          const designation = String(ligne.designation || '');
+          const quantite = Number(ligne.quantite || 0);
+          if (quantite > 0) {
+            const ref = designation.split(' — ')[0]?.trim();
+            if (ref) {
+              // Find product by reference
+              const [prod] = await db.select().from(produits).where(eq(produits.reference, ref)).limit(1);
+              if (prod) {
+                await db.update(produits)
+                  .set({ stockActuel: prod.stockActuel + quantite, updatedAt: new Date() })
+                  .where(eq(produits.id, prod.id));
+              }
+            }
+          }
+        }
+      }
+
       return ok(res, numericRow(row));
-    } catch (e) { return err(res, 'Erreur serveur', 500); }
+    } catch (e) {
+      console.error('[factures PATCH]', e);
+      return err(res, 'Erreur serveur', 500);
+    }
   }
 
   // ── POST /api/factures/:id/paiement via query param ───

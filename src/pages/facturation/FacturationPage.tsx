@@ -7,7 +7,7 @@ import { useAppStore } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
 import { facturesApi } from '@/lib/api';
 import { formatPrice, formatDate, statutColor, statutLabel } from '@/lib/format';
-import type { Facture, LigneFacture } from '@/types';
+import type { Facture } from '@/types';
 
 const STATUTS = ['tous', 'brouillon', 'envoyee', 'payee', 'partielle', 'en_retard', 'annulee'] as const;
 
@@ -121,7 +121,7 @@ export default function FacturationPage() {
         remiseGlobale: formRemiseGlobale,
         tva: formTva,
         totalTTC,
-        dateEcheance: formDateEcheance,
+        dateEcheance: new Date(formDateEcheance),
         notes: formNotes || undefined,
       };
 

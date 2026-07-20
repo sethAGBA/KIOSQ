@@ -17,9 +17,12 @@ import FacturationPage from '@/pages/facturation/FacturationPage';
 import FactureDetailPage from '@/pages/facturation/FactureDetailPage';
 import FournisseursPage from '@/pages/fournisseurs/FournisseursPage';
 import FournisseurDetailPage from '@/pages/fournisseurs/FournisseurDetailPage';
+import CommandeFournisseurDetailPage from '@/pages/fournisseurs/CommandeFournisseurDetailPage';
 import RapportsPage from '@/pages/rapports/RapportsPage';
 import UtilisateursPage from '@/pages/utilisateurs/UtilisateursPage';
 import ConfigurationPage from '@/pages/configuration/ConfigurationPage';
+import POSPage from '@/pages/pos/POSPage';
+import HistoriqueVentesPage from '@/pages/pos/HistoriqueVentesPage';
 
 export default function App() {
   return (
@@ -64,6 +67,11 @@ export default function App() {
           {/* Fournisseurs */}
           <Route path="/fournisseurs" element={<FournisseursPage />} />
           <Route path="/fournisseurs/:id" element={<FournisseurDetailPage />} />
+          <Route path="/fournisseurs/commande/:id" element={<CommandeFournisseurDetailPage />} />
+
+          {/* POS */}
+          <Route path="/pos" element={<POSPage />} />
+          <Route path="/pos/historique" element={<HistoriqueVentesPage />} />
 
           {/* Rapports */}
           <Route path="/rapports" element={<RapportsPage />} />

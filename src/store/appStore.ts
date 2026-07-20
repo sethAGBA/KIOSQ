@@ -10,6 +10,7 @@ import {
 import {
   clientsApi, produitsApi, commandesApi,
   facturesApi, fournisseursApi, categoriesApi,
+  commandesFournisseursApi,
 } from '@/lib/api';
 
 const USE_API = Boolean(import.meta.env.VITE_API_URL);
@@ -20,6 +21,7 @@ interface LoadingState {
   commandes: boolean;
   factures: boolean;
   fournisseurs: boolean;
+  commandesFournisseurs: boolean;
 }
 
 interface AppState {
@@ -35,13 +37,14 @@ interface AppState {
   loading: LoadingState;
 
   // ── Fetch actions (API or mock) ───────────────────────
-  fetchClients:      () => Promise<void>;
-  fetchProduits:     () => Promise<void>;
-  fetchCommandes:    () => Promise<void>;
-  fetchFactures:     () => Promise<void>;
-  fetchFournisseurs: () => Promise<void>;
-  fetchCategories:   () => Promise<void>;
-  fetchAll:          () => Promise<void>;
+  fetchClients:                () => Promise<void>;
+  fetchProduits:               () => Promise<void>;
+  fetchCommandes:              () => Promise<void>;
+  fetchFactures:               () => Promise<void>;
+  fetchFournisseurs:           () => Promise<void>;
+  fetchCategories:             () => Promise<void>;
+  fetchCommandesFournisseurs:  () => Promise<void>;
+  fetchAll:                    () => Promise<void>;
 
   // ── Clients ───────────────────────────────────────────
   addClient:    (c: Client) => void;
@@ -65,6 +68,15 @@ interface AppState {
   addFournisseur:    (f: Fournisseur) => void;
   updateFournisseur: (id: string, f: Partial<Fournisseur>) => void;
 
+  // ── Commandes fournisseurs ────────────────────────────
+  addCommandeFournisseur:    (c: CommandeFournisseur) => void;
+  updateCommandeFournisseur: (id: string, c: Partial<CommandeFournisseur>) => void;
+
+  // ── Catégories ────────────────────────────────────────
+  addCategorie:    (c: Categorie) => void;
+  updateCategorie: (id: string, c: Partial<Categorie>) => void;
+  deleteCategorie: (id: string) => void;
+
   // ── Notifications ─────────────────────────────────────
   markNotificationRead:    (id: string) => void;
   markAllNotificationsRead: () => void;
@@ -82,7 +94,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   categories:            USE_API ? [] : mockCategories,
   loading: {
     clients: false, produits: false, commandes: false,
-    factures: false, fournisseurs: false,
+    factures: false, fournisseurs: false, commandesFournisseurs: false,
   },
 
   // ── Fetch ─────────────────────────────────────────────
@@ -149,11 +161,23 @@ export const useAppStore = create<AppState>()((set, get) => ({
     } catch { /* ignore */ }
   },
 
+  fetchCommandesFournisseurs: async () => {
+    if (!USE_API) return;
+    set(s => ({ loading: { ...s.loading, commandesFournisseurs: true } }));
+    try {
+      const data = await commandesFournisseursApi.list();
+      set({ commandesFournisseurs: data });
+    } finally {
+      set(s => ({ loading: { ...s.loading, commandesFournisseurs: false } }));
+    }
+  },
+
   fetchAll: async () => {
-    const { fetchClients, fetchProduits, fetchCommandes, fetchFactures, fetchFournisseurs, fetchCategories } = get();
+    const { fetchClients, fetchProduits, fetchCommandes, fetchFactures, fetchFournisseurs, fetchCategories, fetchCommandesFournisseurs } = get();
     await Promise.all([
       fetchClients(), fetchProduits(), fetchCommandes(),
       fetchFactures(), fetchFournisseurs(), fetchCategories(),
+      fetchCommandesFournisseurs(),
     ]);
   },
 
@@ -185,6 +209,19 @@ export const useAppStore = create<AppState>()((set, get) => ({
   addFournisseur:    (f) => set(s => ({ fournisseurs: [...s.fournisseurs, f] })),
   updateFournisseur: (id, f) =>
     set(s => ({ fournisseurs: s.fournisseurs.map(x => x.id === id ? { ...x, ...f } : x) })),
+
+  // ── Commandes fournisseurs ────────────────────────────
+  addCommandeFournisseur: (c) =>
+    set(s => ({ commandesFournisseurs: [...s.commandesFournisseurs, c] })),
+  updateCommandeFournisseur: (id, c) =>
+    set(s => ({ commandesFournisseurs: s.commandesFournisseurs.map(x => x.id === id ? { ...x, ...c } : x) })),
+
+  // ── Catégories ────────────────────────────────────────
+  addCategorie: (c) => set(s => ({ categories: [...s.categories, c] })),
+  updateCategorie: (id, c) =>
+    set(s => ({ categories: s.categories.map(x => x.id === id ? { ...x, ...c } : x) })),
+  deleteCategorie: (id) =>
+    set(s => ({ categories: s.categories.filter(x => x.id !== id) })),
 
   // ── Notifications ─────────────────────────────────────
   markNotificationRead: (id) =>

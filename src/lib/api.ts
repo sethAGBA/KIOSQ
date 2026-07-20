@@ -91,6 +91,20 @@ export const facturesApi = {
   update:    (id: string, data: Partial<import('@/types').Facture>) => patch<import('@/types').Facture>(`/api/factures/${id}`, data),
   addPaiement: (id: string, paiement: import('@/types').Paiement) =>
     post<import('@/types').Facture>(`/api/factures/${id}`, paiement),
+
+  /** Annule une vente et restaure le stock côté serveur */
+  annuler: (id: string, motif: string) =>
+    patch<import('@/types').Facture>(`/api/factures/${id}`, { statut: 'annulee', notes: motif }),
+
+  /** Enregistre un retour client et restaure le stock côté serveur */
+  retour: (
+    id: string,
+    payload: {
+      lignesRetour: { designation: string; quantite: number; prixUnitaire: number }[];
+      motif: string;
+      remboursementMode: 'especes' | 'credit_reduc' | 'avoir';
+    }
+  ) => post<import('@/types').Facture>(`/api/factures/${id}/retour`, payload),
 };
 
 // ── Fournisseurs ──────────────────────────────────────────
@@ -104,8 +118,49 @@ export const fournisseursApi = {
 // ── Catégories ────────────────────────────────────────────
 export const categoriesApi = {
   list:   () => get<import('@/types').Categorie[]>('/api/categories'),
-  create: (nom: string, description?: string, couleur?: string) =>
-    post<import('@/types').Categorie>('/api/categories', { nom, description, couleur }),
+  create: (data: { nom: string; description?: string; couleur?: string }) =>
+    post<import('@/types').Categorie>('/api/categories', data),
+  update: (id: string, data: Partial<import('@/types').Categorie>) =>
+    patch<import('@/types').Categorie>(`/api/categories/${id}`, data),
+  remove: (id: string) => del<{ message: string }>(`/api/categories/${id}`),
+};
+
+// ── Commandes fournisseurs ────────────────────────────────
+export const commandesFournisseursApi = {
+  list:            () => get<import('@/types').CommandeFournisseur[]>('/api/commandes-fournisseurs'),
+  get:             (id: string) => get<import('@/types').CommandeFournisseur>(`/api/commandes-fournisseurs/${id}`),
+  create:          (data: Partial<import('@/types').CommandeFournisseur>) =>
+    post<import('@/types').CommandeFournisseur>('/api/commandes-fournisseurs', data),
+  updateStatut:    (id: string, statut: string) =>
+    patch<import('@/types').CommandeFournisseur>(`/api/commandes-fournisseurs/${id}`, { statut }),
+  addPaiement:     (id: string, montant: number) =>
+    post<import('@/types').CommandeFournisseur>(`/api/commandes-fournisseurs/${id}`, { montant }),
+};
+
+// ── POS ──────────────────────────────────────────────────
+export const posApi = {
+  /** Encaisse une vente POS : valide les stocks, les déduit, crée le ticket */
+  enregistrerVente: (data: {
+    clientId?: string;
+    clientNom?: string;
+    lignes: {
+      produitId: string;
+      produitRef: string;
+      produitNom: string;
+      designation: string;
+      quantite: number;
+      prixUnitaire: number;
+      remise: number;
+      tva: number;
+      total: number;
+    }[];
+    totalHT: number;
+    remiseGlobale: number;
+    tva: number;
+    totalTTC: number;
+    modePaiement: string;
+    montantRecu: number;
+  }) => post<import('@/types').Facture>('/api/pos/vente', data),
 };
 
 // ── Utilisateurs ──────────────────────────────────────────

@@ -1,6 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Package, Edit, AlertTriangle, TrendingDown, Tag } from 'lucide-react';
-import clsx from 'clsx';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAppStore } from '@/store/appStore';

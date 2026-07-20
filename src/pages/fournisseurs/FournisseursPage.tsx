@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Truck, ArrowUpRight, Mail, Phone, Package, X, Edit, Trash2 } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Plus, Search, Truck, ArrowUpRight, Mail, Phone, Package, X, Edit } from 'lucide-react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { useAppStore } from '@/store/appStore';
@@ -25,6 +25,7 @@ export default function FournisseursPage() {
   const { fournisseurs, commandesFournisseurs, addFournisseur, updateFournisseur } = useAppStore();
   const { user } = useAuthStore();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'fournisseurs' | 'commandes'>('fournisseurs');
@@ -34,6 +35,25 @@ export default function FournisseursPage() {
   const [loading, setLoading] = useState(false);
 
   const canEdit = user?.role === 'admin' || user?.role === 'gestionnaire';
+
+  // Auto-open edit modal if ?edit=<id> is in URL (from FournisseurDetailPage)
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (editId) {
+      const f = fournisseurs.find(x => x.id === editId);
+      if (f) {
+        setEditing(f);
+        setForm({
+          nom: f.nom, contact: f.contact ?? '', email: f.email ?? '',
+          telephone: f.telephone ?? '', adresse: f.adresse ?? '',
+          pays: f.pays ?? '', delaiLivraison: f.delaiLivraison ?? 7,
+          conditionsPaiement: f.conditionsPaiement ?? '', notes: f.notes ?? '',
+        });
+        setShowModal(true);
+        setSearchParams({}, { replace: true }); // clean up URL
+      }
+    }
+  }, [fournisseurs, searchParams, setSearchParams]);
 
   const filteredF = useMemo(() =>
     fournisseurs.filter(f =>

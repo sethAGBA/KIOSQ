@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, ShoppingCart, CheckCircle, Truck, Package, ArrowRight } from 'lucide-react';
+import { ArrowLeft, FileText, ShoppingCart, CheckCircle, Package, ArrowRight } from 'lucide-react';
 import clsx from 'clsx';
 import { useState } from 'react';
 import toast from 'react-hot-toast';

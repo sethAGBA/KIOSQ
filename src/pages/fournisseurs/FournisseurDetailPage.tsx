@@ -19,7 +19,6 @@ export default function FournisseurDetailPage() {
   );
 
   const cmds = commandesFournisseurs.filter(c => c.fournisseurId === id);
-  const totalCommandé = cmds.reduce((s, c) => s + c.totalTTC, 0);
   const cmdEnCours = cmds.filter(c => ['commandee', 'recu_partiel'].includes(c.statut)).length;
 
   return (
@@ -57,7 +56,7 @@ export default function FournisseurDetailPage() {
               </div>
             </div>
           </div>
-          <button className="btn-secondary" onClick={() => navigate('/fournisseurs')}>
+          <button className="btn-secondary" onClick={() => navigate(`/fournisseurs?edit=${fournisseur.id}`)}>
             <Edit size={14} /> Modifier
           </button>
         </div>

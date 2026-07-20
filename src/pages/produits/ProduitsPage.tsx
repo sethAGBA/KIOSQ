@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Package, AlertTriangle, TrendingDown, X, Edit, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
@@ -31,6 +31,7 @@ export default function ProduitsPage() {
   const { produits, categories, fournisseurs, addProduit, updateProduit, deleteProduit } = useAppStore();
   const { user } = useAuthStore();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('tous');
@@ -42,6 +43,17 @@ export default function ProduitsPage() {
 
   const canEdit = user?.role === 'admin' || user?.role === 'gestionnaire';
   const isAdmin = user?.role === 'admin';
+
+  // Auto-open edit modal via ?edit=<id> (from ProduitDetailPage)
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (editId) {
+      const p = produits.find(x => x.id === editId);
+      if (p) openEdit(p, { stopPropagation: () => {} } as React.MouseEvent);
+      setSearchParams({}, { replace: true });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [produits]);
 
   const filtered = useMemo(() => {
     return produits.filter((p) => {

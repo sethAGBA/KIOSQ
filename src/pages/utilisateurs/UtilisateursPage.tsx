@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Shield, User, Mail, Phone, CheckCircle, XCircle, Edit, X, RefreshCw } from 'lucide-react';
+import { Plus, Search, Shield, Mail, Phone, CheckCircle, XCircle, Edit, X, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { formatDate } from '@/lib/format';

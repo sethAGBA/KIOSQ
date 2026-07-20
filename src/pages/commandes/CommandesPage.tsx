@@ -7,7 +7,7 @@ import { useAppStore } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
 import { commandesApi } from '@/lib/api';
 import { formatPrice, formatDate, statutColor, statutLabel } from '@/lib/format';
-import type { Commande, LigneCommande } from '@/types';
+import type { Commande } from '@/types';
 
 const STATUTS_COMMANDE = ['tous', 'brouillon', 'confirme', 'en_preparation', 'expedie', 'livre', 'annule'] as const;
 const STATUTS_DEVIS    = ['tous', 'brouillon', 'envoye', 'accepte', 'refuse', 'expire'] as const;
@@ -135,8 +135,8 @@ export default function CommandesPage() {
         totalTTC,
         acompte: formAcompte,
         notes: formNotes || undefined,
-        dateLivraison: formDateLivraison || undefined,
-        dateValidite: formDateValidite || undefined,
+        dateLivraison: formDateLivraison ? new Date(formDateLivraison) : undefined,
+        dateValidite: formDateValidite ? new Date(formDateValidite) : undefined,
       };
 
       const created = await commandesApi.create(payload).catch(() => null);
