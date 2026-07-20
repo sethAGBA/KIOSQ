@@ -1,0 +1,119 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Configurer le framework de test et installer les dépendances": [
+      {
+        "executionId": "90102ec3-4abf-459a-ace6-6e874877c3a4",
+        "chatSessionId": "sess_920ac616-18bf-4196-a6fd-98ed8916fdf7",
+        "timestamp": 1784542416217
+      },
+      {
+        "executionId": "90102ec3-4abf-459a-ace6-6e874877c3a4",
+        "chatSessionId": "sess_920ac616-18bf-4196-a6fd-98ed8916fdf7",
+        "timestamp": 1784542423951
+      },
+      {
+        "executionId": "90102ec3-4abf-459a-ace6-6e874877c3a4",
+        "chatSessionId": "sess_920ac616-18bf-4196-a6fd-98ed8916fdf7",
+        "timestamp": 1784542540637
+      }
+    ],
+    "2.1 Vérifier et compléter `numericRow` / `numericRows` dans `api/_lib/response.ts`": [
+      {
+        "executionId": "90102ec3-4abf-459a-ace6-6e874877c3a4",
+        "chatSessionId": "sess_920ac616-18bf-4196-a6fd-98ed8916fdf7",
+        "timestamp": 1784542416253
+      },
+      {
+        "executionId": "90102ec3-4abf-459a-ace6-6e874877c3a4",
+        "chatSessionId": "sess_920ac616-18bf-4196-a6fd-98ed8916fdf7",
+        "timestamp": 1784542545280
+      }
+    ],
+    "3.1 Implémenter le handler `api/categories/[id].ts`": [
+      {
+        "executionId": "90102ec3-4abf-459a-ace6-6e874877c3a4",
+        "chatSessionId": "sess_920ac616-18bf-4196-a6fd-98ed8916fdf7",
+        "timestamp": 1784542416301
+      },
+      {
+        "executionId": "90102ec3-4abf-459a-ace6-6e874877c3a4",
+        "chatSessionId": "sess_920ac616-18bf-4196-a6fd-98ed8916fdf7",
+        "timestamp": 1784542546003
+      }
+    ],
+    "4.1 Créer le dossier et implémenter le handler `api/dashboard/stats/index.ts`": [
+      {
+        "executionId": "90102ec3-4abf-459a-ace6-6e874877c3a4",
+        "chatSessionId": "sess_920ac616-18bf-4196-a6fd-98ed8916fdf7",
+        "timestamp": 1784542416321
+      },
+      {
+        "executionId": "90102ec3-4abf-459a-ace6-6e874877c3a4",
+        "chatSessionId": "sess_920ac616-18bf-4196-a6fd-98ed8916fdf7",
+        "timestamp": 1784542546735
+      }
+    ],
+    "5.1 Ajouter la mise à jour du stock produits au PATCH statut `recu` / `recu_partiel`": [
+      {
+        "executionId": "90102ec3-4abf-459a-ace6-6e874877c3a4",
+        "chatSessionId": "sess_920ac616-18bf-4196-a6fd-98ed8916fdf7",
+        "timestamp": 1784542416348
+      },
+      {
+        "executionId": "90102ec3-4abf-459a-ace6-6e874877c3a4",
+        "chatSessionId": "sess_920ac616-18bf-4196-a6fd-98ed8916fdf7",
+        "timestamp": 1784542547598
+      }
+    ],
+    "6. Checkpoint — s'assurer que les tests existants passent": [
+      {
+        "executionId": "90102ec3-4abf-459a-ace6-6e874877c3a4",
+        "chatSessionId": "sess_920ac616-18bf-4196-a6fd-98ed8916fdf7",
+        "timestamp": 1784542416372
+      }
+    ],
+    "7.1 Ajouter les routes manquantes dans `server.ts`": [
+      {
+        "executionId": "90102ec3-4abf-459a-ace6-6e874877c3a4",
+        "chatSessionId": "sess_920ac616-18bf-4196-a6fd-98ed8916fdf7",
+        "timestamp": 1784542416401
+      }
+    ],
+    "8.1 Déclarer l'interface `DashboardStats` et ajouter l'objet `dashboardApi` dans `src/lib/api.ts`": [
+      {
+        "executionId": "90102ec3-4abf-459a-ace6-6e874877c3a4",
+        "chatSessionId": "sess_920ac616-18bf-4196-a6fd-98ed8916fdf7",
+        "timestamp": 1784542416425
+      }
+    ],
+    "9.1 Câbler `DashboardPage.tsx` sur `dashboardApi.stats()`": [
+      {
+        "executionId": "90102ec3-4abf-459a-ace6-6e874877c3a4",
+        "chatSessionId": "sess_920ac616-18bf-4196-a6fd-98ed8916fdf7",
+        "timestamp": 1784542416444
+      }
+    ],
+    "10.1 Ajouter un champ `error: string | null` dans l'`AppStore` et le propager": [
+      {
+        "executionId": "90102ec3-4abf-459a-ace6-6e874877c3a4",
+        "chatSessionId": "sess_920ac616-18bf-4196-a6fd-98ed8916fdf7",
+        "timestamp": 1784542416466
+      }
+    ],
+    "11.1 Enrichir `db/seed.ts` avec des données historiques multi-mois": [
+      {
+        "executionId": "90102ec3-4abf-459a-ace6-6e874877c3a4",
+        "chatSessionId": "sess_920ac616-18bf-4196-a6fd-98ed8916fdf7",
+        "timestamp": 1784542416487
+      }
+    ],
+    "13. Checkpoint final — exécuter tous les tests et valider l'intégration": [
+      {
+        "executionId": "90102ec3-4abf-459a-ace6-6e874877c3a4",
+        "chatSessionId": "sess_920ac616-18bf-4196-a6fd-98ed8916fdf7",
+        "timestamp": 1784542416511
+      }
+    ]
+  }
+}
