@@ -11,7 +11,7 @@ import toast from 'react-hot-toast';
 import { useAppStore } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
 import { formatPrice } from '@/lib/format';
-import { posApi } from '@/lib/api';
+import { posApi, USE_API } from '@/lib/api';
 import type { ModePaiement, Facture } from '@/types';
 import { ReceiptModal } from '@/components/pos/ReceiptModal';
 import { SaleSuccessModal } from '@/components/pos/SaleSuccessModal';
@@ -35,7 +35,7 @@ const MODES: { value: ModePaiement; label: string; Icon: React.FC<{ size?: numbe
 
 export default function POSPage() {
   const navigate = useNavigate();
-  const { produits, categories, clients, factures, addFacture, updateProduit } = useAppStore();
+  const { produits, categories, clients, factures, addFacture, updateProduit, updateClient } = useAppStore();
   const { user } = useAuthStore();
 
   // ── States ────────────────────────────────────────────────
@@ -89,8 +89,10 @@ export default function POSPage() {
   const montantTVA = appliquerTVA ? apresRemiseFlat * (tvaTaux / 100) : 0;
   const totalTTC = apresRemiseFlat + montantTVA;
   
-  const renduMonnaie = modePaiement === 'especes' && montantRecu >= totalTTC
+  const renduMonnaie = modePaiement === 'especes' && montantRecu > 0 && montantRecu >= totalTTC
     ? montantRecu - totalTTC : 0;
+  const resteApayer = montantRecu > 0 && montantRecu < totalTTC
+    ? totalTTC - montantRecu : 0;
   const totalArticles = cart.reduce((s, l) => s + l.quantite, 0);
 
   // ── Panier ────────────────────────────────────────────────
@@ -137,9 +139,15 @@ export default function POSPage() {
   // ── Encaisser ─────────────────────────────────────────────
   const handleEncaisser = async () => {
     if (cart.length === 0) { toast.error('Panier vide'); return; }
-    if (modePaiement === 'especes' && montantRecu > 0 && montantRecu < totalTTC) {
-      toast.error('Montant reçu insuffisant'); return;
+    
+    const effectiveRecu = (montantRecu && montantRecu > 0) ? montantRecu : totalTTC;
+    const reste = Math.max(0, totalTTC - effectiveRecu);
+
+    if (reste > 0 && !selectedClient) {
+      toast.error('Un client doit être sélectionné pour faire un paiement partiel (crédit).'); 
+      return;
     }
+
     setLoading(true);
     try {
       // Build canonical ligne format matching the server schema
@@ -157,7 +165,7 @@ export default function POSPage() {
 
       // Try real API first
       let newFacture: Facture | null = null;
-      try {
+      if (USE_API) {
         newFacture = await posApi.enregistrerVente({
           clientId:      selectedClient?.id,
           clientNom:     selectedClient?.nom ?? 'Client anonyme',
@@ -167,7 +175,7 @@ export default function POSPage() {
           tva:           appliquerTVA ? tvaTaux : 0,
           totalTTC,
           modePaiement,
-          montantRecu,
+          montantRecu:   effectiveRecu,
         });
 
         // Sync store with server response
@@ -178,23 +186,23 @@ export default function POSPage() {
             const p = produits.find(x => x.id === l.produitId);
             if (p) updateProduit(p.id, { stockActuel: p.stockActuel - l.quantite });
           });
+          // Reflect client debt increase if partial payment
+          if (newFacture.resteAPayer > 0 && selectedClient) {
+            updateClient(selectedClient.id, { 
+              soldeCredit: selectedClient.soldeCredit + newFacture.resteAPayer 
+            });
+          }
         }
-      } catch (apiErr: any) {
-        // If API returns a stock error, surface it immediately
-        if (apiErr?.message?.includes('Stock insuffisant') || apiErr?.message?.includes('introuvable')) {
-          toast.error(apiErr.message);
-          return;
-        }
-        // Otherwise fall back to local mock mode
-        console.warn('[POS] API unavailable, using local store:', apiErr?.message);
+      } else {
         const numero  = `TIC-${new Date().getFullYear()}-${String(factures.length + 1).padStart(4, '0')}`;
+        const mPaye = totalTTC - reste;
         newFacture = {
           id: `pos-${Date.now()}`,
           numero,
           clientId: selectedClient?.id || 'anonyme',
           clientNom: selectedClient?.nom ?? 'Client anonyme',
           clientEmail: selectedClient?.email,
-          statut: 'payee',
+          statut: reste > 0 ? 'partielle' : 'payee',
           lignes: lignesPayload.map(l => ({
             designation: l.designation,
             quantite: l.quantite,
@@ -207,8 +215,9 @@ export default function POSPage() {
           remiseGlobale: remisePercent,
           tva: appliquerTVA ? tvaTaux : 0,
           totalTTC,
-          montantPaye: totalTTC, resteAPayer: 0,
-          paiements: [{ id: `pay-${Date.now()}`, montant: totalTTC, mode: modePaiement, date: new Date() }],
+          montantPaye: mPaye, 
+          resteAPayer: reste,
+          paiements: [{ id: `pay-${Date.now()}`, montant: mPaye, mode: modePaiement, date: new Date() }],
           dateFacture: new Date(), dateEcheance: new Date(),
           createdBy: user?.id ?? '', createdAt: new Date(), updatedAt: new Date(),
         } as Facture;
@@ -217,6 +226,9 @@ export default function POSPage() {
           const p = produits.find(x => x.id === l.produitId);
           if (p) updateProduit(p.id, { stockActuel: p.stockActuel - l.quantite });
         });
+        if (reste > 0 && selectedClient) {
+          updateClient(selectedClient.id, { soldeCredit: selectedClient.soldeCredit + reste });
+        }
       }
 
       setSuccessFacture(newFacture);
@@ -578,27 +590,34 @@ export default function POSPage() {
             </div>
           </div>
 
-          {/* Montant reçu (espèces) */}
-          {modePaiement === 'especes' && (
-            <div>
-              <label className="label">Montant reçu (F)</label>
-              <input
-                type="number" min="0" className="input text-sm font-semibold text-center"
-                placeholder={String(Math.ceil(totalTTC))}
-                value={montantRecu || ''}
-                onChange={e => setMontantRecu(+e.target.value)}
-              />
-              {renduMonnaie > 0 && (
-                <div
-                  className="mt-2 flex justify-between px-3 py-2 rounded-lg text-sm font-bold"
-                  style={{ backgroundColor: '#f0fdf4', color: '#16a34a' }}
-                >
-                  <span>Rendu monnaie</span>
-                  <span>{formatPrice(renduMonnaie)}</span>
-                </div>
-              )}
-            </div>
-          )}
+          {/* Montant reçu */}
+          <div>
+            <label className="label">Montant reçu (F)</label>
+            <input
+              type="number" min="0" className="input text-sm font-semibold text-center"
+              placeholder={String(Math.ceil(totalTTC))}
+              value={montantRecu || ''}
+              onChange={e => setMontantRecu(+e.target.value)}
+            />
+            {renduMonnaie > 0 && (
+              <div
+                className="mt-2 flex justify-between px-3 py-2 rounded-lg text-sm font-bold"
+                style={{ backgroundColor: '#f0fdf4', color: '#16a34a' }}
+              >
+                <span>Rendu monnaie</span>
+                <span>{formatPrice(renduMonnaie)}</span>
+              </div>
+            )}
+            {resteApayer > 0 && (
+              <div
+                className="mt-2 flex justify-between px-3 py-2 rounded-lg text-xs font-semibold"
+                style={{ backgroundColor: '#fef9ee', color: '#d97706', border: '1px solid #fde68a' }}
+              >
+                <span>⚠️ Reste (crédit client)</span>
+                <span>{formatPrice(resteApayer)}</span>
+              </div>
+            )}
+          </div>
 
           {/* Bouton encaisser */}
           <button
@@ -620,8 +639,9 @@ export default function POSPage() {
       {showSuccess && successFacture && (
         <SaleSuccessModal
           facture={successFacture}
+          montantRecu={montantRecu}
           onNouvelleVente={handleNouvelleVente}
-          onVoirTicket={() => { setShowSuccess(false); setShowTicket(true); }}
+          onVoirTicket={() => { clearCart(); setShowSuccess(false); setShowTicket(true); }}
         />
       )}
 

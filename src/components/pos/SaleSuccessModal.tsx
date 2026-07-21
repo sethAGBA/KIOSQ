@@ -4,19 +4,20 @@ import type { Facture } from '@/types';
 
 interface SaleSuccessModalProps {
   facture: Facture;
+  montantRecu?: number;
   onNouvelleVente: () => void;
   onVoirTicket: () => void;
 }
 
-export function SaleSuccessModal({ facture, onNouvelleVente, onVoirTicket }: SaleSuccessModalProps) {
+export function SaleSuccessModal({ facture, montantRecu, onNouvelleVente, onVoirTicket }: SaleSuccessModalProps) {
   const paiement = facture.paiements?.[0];
   const modeLabel: Record<string, string> = {
     especes: 'Espèces', virement: 'Virement', cheque: 'Chèque',
     mobile_money: 'Mobile Money', carte: 'Carte', autre: 'Autre',
   };
-  const montantRecu = paiement?.montant ?? facture.montantPaye;
-  const rendu = paiement?.mode === 'especes' && montantRecu > facture.totalTTC
-    ? montantRecu - facture.totalTTC : 0;
+  const actualRecu = montantRecu || (paiement?.montant ?? facture.montantPaye);
+  const rendu = paiement?.mode === 'especes' && actualRecu > facture.totalTTC
+    ? actualRecu - facture.totalTTC : 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -73,6 +74,12 @@ export function SaleSuccessModal({ facture, onNouvelleVente, onVoirTicket }: Sal
               {modeLabel[paiement?.mode ?? ''] ?? '—'}
             </span>
           </div>
+          {paiement?.mode === 'especes' && actualRecu > 0 && (
+            <div className="flex justify-between text-sm" style={{ color: 'var(--color-ink-muted)' }}>
+              <span>Montant reçu</span>
+              <span className="font-semibold" style={{ color: 'var(--color-ink)' }}>{formatPrice(actualRecu)}</span>
+            </div>
+          )}
           <div
             className="flex justify-between text-base font-bold pt-2 mt-1"
             style={{ borderTop: '1px solid var(--color-cream-dark)', color: 'var(--color-ink)' }}
@@ -82,11 +89,11 @@ export function SaleSuccessModal({ facture, onNouvelleVente, onVoirTicket }: Sal
           </div>
           {rendu > 0 && (
             <div
-              className="flex justify-between text-sm font-bold px-3 py-2 rounded-xl"
-              style={{ backgroundColor: '#f0fdf4', color: '#16a34a' }}
+              className="flex justify-between text-lg font-bold px-4 py-3 rounded-xl mt-1"
+              style={{ backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0' }}
             >
-              <span>Rendu monnaie</span>
-              <span>{formatPrice(rendu)}</span>
+              <span>🪙 Monnaie à rendre</span>
+              <span className="text-xl">{formatPrice(rendu)}</span>
             </div>
           )}
           {facture.resteAPayer > 0 && (
@@ -94,7 +101,7 @@ export function SaleSuccessModal({ facture, onNouvelleVente, onVoirTicket }: Sal
               className="flex justify-between text-sm font-bold px-3 py-2 rounded-xl"
               style={{ backgroundColor: '#fef2f2', color: '#dc2626' }}
             >
-              <span>Reste à payer</span>
+              <span>⚠️ Reste à payer (crédit)</span>
               <span>{formatPrice(facture.resteAPayer)}</span>
             </div>
           )}

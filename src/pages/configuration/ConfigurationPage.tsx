@@ -3,25 +3,23 @@ import { Plus, Save, Building2, Globe, CreditCard, RefreshCw, Tag, Ruler, Shield
 import toast from 'react-hot-toast';
 import { useAppStore } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
-import { categoriesApi } from '@/lib/api';
+import { categoriesApi, parametresApi, unitesApi, USE_API } from '@/lib/api';
+import type { Unite as ApiUnite } from '@/lib/api';
 import clsx from 'clsx';
-import type { Categorie, Unite } from '@/types';
-
-const STORAGE_KEY = 'kiosq_config';
-const UNITES_KEY = 'kiosq_unites';
+import type { Categorie } from '@/types';
 
 const DEFAULT_CONFIG = {
-  nom: 'Kiosq Commercial',
-  adresse: 'Dakar, Sénégal',
-  telephone: '+221 33 800 00 00',
-  email: 'contact@kiosq.com',
-  siteWeb: 'www.kiosq.com',
-  siret: '',
-  devise: 'XOF',
-  tva: '18',
+  nom:        'Kiosq Commercial',
+  adresse:    'Dakar, Sénégal',
+  telephone:  '+221 33 800 00 00',
+  email:      'contact@kiosq.com',
+  siteWeb:    'www.kiosq.com',
+  siret:      '',
+  devise:     'XOF',
+  tva:        '18',
   piedDePage: 'Merci pour votre confiance — Kiosq Commercial',
-  logoUrl: '',
-};
+  logoUrl:    window.location.origin + '/icon.png',
+} satisfies Record<string, string>;
 
 type Tab = 'categories' | 'unites' | 'entreprise' | 'maintenance';
 
@@ -32,6 +30,7 @@ export default function ConfigurationPage() {
 
   // Entreprise state
   const [config, setConfig] = useState(DEFAULT_CONFIG);
+  const [configLoading, setConfigLoading] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -42,9 +41,10 @@ export default function ConfigurationPage() {
   const [catLoading, setCatLoading] = useState(false);
 
   // Unités state
-  const [unites, setUnites] = useState<Unite[]>([]);
+  const [unites, setUnites] = useState<ApiUnite[]>([]);
+  const [unitesLoading, setUnitesLoading] = useState(false);
   const [uniteModal, setUniteModal] = useState(false);
-  const [uniteEditing, setUniteEditing] = useState<Unite | null>(null);
+  const [uniteEditing, setUniteEditing] = useState<ApiUnite | null>(null);
   const [uniteForm, setUniteForm] = useState({ nom: '', abreviation: '' });
 
   // Maintenance
@@ -54,16 +54,39 @@ export default function ConfigurationPage() {
   const canEdit = user?.role === 'admin' || user?.role === 'gestionnaire';
 
   useEffect(() => {
-    // Load config
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) setConfig(prev => ({ ...prev, ...JSON.parse(stored) }));
-    } catch { }
-    // Load unités
-    try {
-      const stored = localStorage.getItem(UNITES_KEY);
-      if (stored) setUnites(JSON.parse(stored));
-    } catch { }
+    if (USE_API) {
+      // Load config from API
+      parametresApi.get()
+        .then(data => setConfig({
+          nom:        data.nom ?? '',
+          adresse:    data.adresse ?? '',
+          telephone:  data.telephone ?? '',
+          email:      data.email ?? '',
+          siteWeb:    data.siteWeb ?? '',
+          siret:      data.siret ?? '',
+          devise:     data.devise ?? 'XOF',
+          tva:        data.tva ?? '18',
+          piedDePage: data.piedDePage ?? '',
+          logoUrl:    data.logoUrl ?? '',
+        }))
+        .catch(() => {}); // keep defaults on error
+      // Load unités from API
+      setUnitesLoading(true);
+      unitesApi.list()
+        .then(setUnites)
+        .catch(() => {})
+        .finally(() => setUnitesLoading(false));
+    } else {
+      // Fallback: localStorage
+      try {
+        const stored = localStorage.getItem('kiosq_config');
+        if (stored) setConfig(prev => ({ ...prev, ...JSON.parse(stored) }));
+      } catch { }
+      try {
+        const stored = localStorage.getItem('kiosq_unites');
+        if (stored) setUnites(JSON.parse(stored));
+      } catch { }
+    }
   }, []);
 
 
@@ -72,15 +95,30 @@ export default function ConfigurationPage() {
     setConfig(p => ({ ...p, ...patch }));
     setDirty(true); setSaved(false);
   };
-  const handleSave = () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-    setSaved(true); setDirty(false);
-    toast.success('Configuration enregistrée');
+  const handleSave = async () => {
+    setConfigLoading(true);
+    try {
+      if (USE_API) {
+        await parametresApi.update(config);
+      } else {
+        localStorage.setItem('kiosq_config', JSON.stringify(config));
+      }
+      setSaved(true); setDirty(false);
+      toast.success('Configuration enregistrée');
+    } catch {
+      toast.error('Erreur lors de la sauvegarde');
+    } finally {
+      setConfigLoading(false);
+    }
   };
-  const handleReset = () => {
+  const handleReset = async () => {
     if (!confirm('Réinitialiser la configuration par défaut ?')) return;
     setConfig(DEFAULT_CONFIG);
-    localStorage.removeItem(STORAGE_KEY);
+    if (USE_API) {
+      await parametresApi.update(DEFAULT_CONFIG).catch(() => {});
+    } else {
+      localStorage.removeItem('kiosq_config');
+    }
     setDirty(false); setSaved(false);
     toast.success('Configuration réinitialisée');
   };
@@ -91,54 +129,88 @@ export default function ConfigurationPage() {
   const handleCatSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setCatLoading(true);
     try {
-      if (catEditing) {
-        await categoriesApi.update(catEditing.id, catForm).catch(() => null);
-        updateCategorie(catEditing.id, catForm);
-        toast.success('Catégorie modifiée');
+      if (USE_API) {
+        if (catEditing) {
+          const updated = await categoriesApi.update(catEditing.id, catForm);
+          updateCategorie(catEditing.id, updated);
+          toast.success('Catégorie modifiée');
+        } else {
+          const created = await categoriesApi.create(catForm);
+          addCategorie(created);
+          toast.success('Catégorie créée');
+        }
       } else {
-        const created = await categoriesApi.create(catForm).catch(() => null);
-        const newCat: Categorie = created ?? { id: `cat-${Date.now()}`, ...catForm, createdAt: new Date() };
-        addCategorie(newCat);
-        toast.success('Catégorie créée');
+        if (catEditing) {
+          updateCategorie(catEditing.id, catForm);
+          toast.success('Catégorie modifiée');
+        } else {
+          const newCat: Categorie = { id: `cat-${Date.now()}`, ...catForm, createdAt: new Date() };
+          addCategorie(newCat);
+          toast.success('Catégorie créée');
+        }
       }
       setCatModal(false);
+    } catch {
+      toast.error('Erreur lors de la sauvegarde');
     } finally { setCatLoading(false); }
   };
   const handleCatDelete = async (c: Categorie) => {
     if (!confirm(`Supprimer la catégorie "${c.nom}" ?`)) return;
-    await categoriesApi.remove(c.id).catch(() => null);
-    deleteCategorie(c.id);
-    toast.success('Catégorie supprimée');
+    try {
+      if (USE_API) {
+        await categoriesApi.remove(c.id);
+      }
+      deleteCategorie(c.id);
+      toast.success('Catégorie supprimée');
+    } catch {
+      toast.error('Erreur lors de la suppression');
+    }
   };
 
   // ── Unités ──────────────────────────────────────────────
-  const saveUnites = (list: Unite[]) => { setUnites(list); localStorage.setItem(UNITES_KEY, JSON.stringify(list)); };
   const openUniteCreate = () => { setUniteEditing(null); setUniteForm({ nom: '', abreviation: '' }); setUniteModal(true); };
-  const openUniteEdit = (u: Unite) => { setUniteEditing(u); setUniteForm({ nom: u.nom, abreviation: u.abreviation }); setUniteModal(true); };
-  const handleUniteSubmit = (e: React.FormEvent) => {
+  const openUniteEdit = (u: ApiUnite) => { setUniteEditing(u); setUniteForm({ nom: u.nom, abreviation: u.abreviation }); setUniteModal(true); };
+  const handleUniteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (uniteEditing) {
-      saveUnites(unites.map(u => u.id === uniteEditing.id ? { ...u, ...uniteForm } : u));
-      toast.success('Unité modifiée');
+    if (USE_API) {
+      try {
+        if (uniteEditing) {
+          const updated = await unitesApi.update(uniteEditing.id, uniteForm);
+          setUnites(prev => prev.map(u => u.id === uniteEditing.id ? updated : u));
+          toast.success('Unité modifiée');
+        } else {
+          const created = await unitesApi.create(uniteForm);
+          setUnites(prev => [...prev, created]);
+          toast.success('Unité créée');
+        }
+      } catch { toast.error('Erreur lors de la sauvegarde'); }
     } else {
-      saveUnites([...unites, { id: `u-${Date.now()}`, ...uniteForm, createdAt: new Date() }]);
-      toast.success('Unité créée');
+      if (uniteEditing) {
+        setUnites(prev => prev.map(u => u.id === uniteEditing.id ? { ...u, ...uniteForm } : u));
+        toast.success('Unité modifiée');
+      } else {
+        setUnites(prev => [...prev, { id: `u-${Date.now()}`, ...uniteForm, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]);
+        toast.success('Unité créée');
+      }
+      localStorage.setItem('kiosq_unites', JSON.stringify(unites));
     }
     setUniteModal(false);
   };
-  const handleUniteDelete = (u: Unite) => {
+  const handleUniteDelete = async (u: ApiUnite) => {
     if (!confirm(`Supprimer l'unité "${u.nom}" ?`)) return;
-    saveUnites(unites.filter(x => x.id !== u.id));
+    if (USE_API) {
+      await unitesApi.remove(u.id).catch(() => {});
+      setUnites(prev => prev.filter(x => x.id !== u.id));
+    } else {
+      const updated = unites.filter(x => x.id !== u.id);
+      setUnites(updated);
+      localStorage.setItem('kiosq_unites', JSON.stringify(updated));
+    }
     toast.success('Unité supprimée');
   };
 
   // ── Maintenance ─────────────────────────────────────────
-  const handleMaintenance = () => {
-    if (confirmText !== 'INITIALISER') { toast.error('Tapez INITIALISER pour confirmer'); return; }
-    localStorage.clear();
-    toast.success('Données réinitialisées — rechargement…');
-    setTimeout(() => window.location.reload(), 1500);
-  };
+  const [isResetting, setIsResetting] = useState(false);
 
   const TABS: { key: Tab; label: string; Icon: any }[] = [
     { key: 'categories', label: 'Catégories', Icon: Tag },
@@ -220,7 +292,9 @@ export default function ConfigurationPage() {
             <table className="table-auto w-full">
               <thead><tr><th>Nom</th><th>Abréviation</th>{canEdit && <th></th>}</tr></thead>
               <tbody>
-                {unites.length === 0 ? (
+                {unitesLoading ? (
+                  <tr><td colSpan={3} className="text-center py-10" style={{ color: 'var(--color-ink-muted)' }}>Chargement…</td></tr>
+                ) : unites.length === 0 ? (
                   <tr><td colSpan={3} className="text-center py-10" style={{ color: 'var(--color-ink-muted)' }}>
                     <p className="mb-2">Aucune unité personnalisée</p>
                     <p className="text-xs">Les unités par défaut (pièce, kg, litre…) sont toujours disponibles dans les formulaires produit.</p>
@@ -329,7 +403,7 @@ export default function ConfigurationPage() {
 
           <div className="flex justify-between">
             <button className="btn-secondary" onClick={handleReset}><RefreshCw size={14} /> Réinitialiser</button>
-            <button className="btn-primary" onClick={handleSave}><Save size={15} /> {saved ? 'Sauvegardé ✓' : 'Enregistrer'}</button>
+            <button className="btn-primary" onClick={handleSave} disabled={configLoading}><Save size={15} /> {configLoading ? 'Enregistrement…' : saved ? 'Sauvegardé ✓' : 'Enregistrer'}</button>
           </div>
         </div>
       )}
@@ -343,7 +417,7 @@ export default function ConfigurationPage() {
             </div>
             <div>
               <h4 className="font-bold text-lg mb-2" style={{ color: '#7f1d1d' }}>Zone Danger — Réinitialisation</h4>
-              <p className="text-sm mb-3" style={{ color: '#b91c1c' }}>Cette action est <strong>irréversible</strong>. Elle effacera toutes les données locales (mock) :</p>
+              <p className="text-sm mb-3" style={{ color: '#b91c1c' }}>Cette action est <strong>irréversible</strong>. Elle effacera toutes les données {USE_API ? 'de la base de données' : 'locales (mock)'} :</p>
               <ul className="grid grid-cols-2 gap-1 text-xs font-medium" style={{ color: '#dc2626' }}>
                 {['Tous les produits', 'Toutes les ventes', 'Tous les clients', 'Tous les fournisseurs', 'Toutes les factures', 'Toutes les commandes'].map(item => (
                   <li key={item}>• {item}</li>
@@ -360,17 +434,30 @@ export default function ConfigurationPage() {
               value={confirmText}
               onChange={e => setConfirmText(e.target.value.toUpperCase())}
               className="input text-center font-bold tracking-widest text-lg"
-              placeholder="Tapez ici…"
+              placeholder="INITIALISER"
             />
             <button
-              onClick={handleMaintenance}
-              disabled={confirmText !== 'INITIALISER'}
+              onClick={async () => {
+                setIsResetting(true);
+                try {
+                  if (typeof USE_API !== 'undefined' && USE_API) {
+                    await parametresApi.resetDb();
+                  } else {
+                    localStorage.clear();
+                  }
+                  window.location.reload();
+                } catch (e) {
+                  console.error(e);
+                  setIsResetting(false);
+                }
+              }}
+              disabled={confirmText !== 'INITIALISER' || isResetting}
               className="w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all"
               style={confirmText === 'INITIALISER'
                 ? { backgroundColor: '#dc2626', color: 'white' }
                 : { backgroundColor: 'var(--color-cream-dark)', color: 'var(--color-ink-muted)', cursor: 'not-allowed' }}
             >
-              <RotateCcw size={18} /> Réinitialiser toutes les données
+              {isResetting ? 'Réinitialisation en cours...' : <><RotateCcw size={18} /> Réinitialiser toutes les données</>}
             </button>
           </div>
         </div>

@@ -1,13 +1,18 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Search, Package, AlertTriangle, TrendingDown, X, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, Package, AlertTriangle, TrendingDown, X, Edit, Trash2, Tag } from 'lucide-react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { useAppStore } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
-import { produitsApi } from '@/lib/api';
+import { produitsApi, USE_API } from '@/lib/api';
 import { formatPrice } from '@/lib/format';
 import type { Produit } from '@/types';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { useTableControls } from '@/hooks/useTableControls';
+import { SortableHeader } from '@/components/ui/SortableHeader';
+import { Pagination } from '@/components/ui/Pagination';
+
 
 const EMPTY_FORM = {
   reference: '',
@@ -23,12 +28,14 @@ const EMPTY_FORM = {
   stockActuel: 0,
   stockMinimum: 5,
   stockMaximum: undefined as number | undefined,
+  datePeremption: '',
   emplacement: '',
   codeBarres: '',
+  magasinId: '',
 };
 
 export default function ProduitsPage() {
-  const { produits, categories, fournisseurs, addProduit, updateProduit, deleteProduit } = useAppStore();
+  const { produits, categories, fournisseurs, magasins, addProduit, updateProduit, deleteProduit } = useAppStore();
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -70,6 +77,8 @@ export default function ProduitsPage() {
     });
   }, [produits, search, catFilter, stockFilter]);
 
+  const table = useTableControls(filtered, { defaultSort: 'designation', defaultDirection: 'asc' });
+
   const enAlerte = produits.filter((p) => p.stockActuel <= p.stockMinimum && p.stockActuel > 0).length;
   const enRupture = produits.filter((p) => p.stockActuel === 0).length;
   const valeurStock = produits.reduce((s, p) => s + p.stockActuel * p.prixAchat, 0);
@@ -103,8 +112,10 @@ export default function ProduitsPage() {
       stockActuel: p.stockActuel,
       stockMinimum: p.stockMinimum,
       stockMaximum: p.stockMaximum,
+      datePeremption: p.datePeremption ? new Date(p.datePeremption).toISOString().split('T')[0] : '',
       emplacement: p.emplacement ?? '',
       codeBarres: p.codeBarres ?? '',
+      magasinId: p.magasinId ?? '',
     });
     setShowModal(true);
   };
@@ -115,13 +126,21 @@ export default function ProduitsPage() {
     try {
       const payload = {
         ...form,
+        categorieId:   form.categorieId   || undefined,
+        fournisseurId: form.fournisseurId || undefined,
+        marque:        form.marque        || undefined,
+        description:   form.description   || undefined,
+        emplacement:   form.emplacement   || undefined,
+        codeBarres:    form.codeBarres    || undefined,
+        magasinId:     form.magasinId     || undefined,
+        datePeremption:form.datePeremption? new Date(form.datePeremption) : undefined,
         prixVenteGros: form.prixVenteGros > 0 ? form.prixVenteGros : undefined,
-        stockMaximum: form.stockMaximum || undefined,
+        stockMaximum:  form.stockMaximum  || undefined,
       };
 
       if (editing) {
-        const updated = await produitsApi.update(editing.id, payload).catch(() => null);
-        if (updated) {
+        if (USE_API) {
+          const updated = await produitsApi.update(editing.id, payload);
           updateProduit(editing.id, updated);
         } else {
           const cat = categories.find(c => c.id === form.categorieId);
@@ -130,8 +149,8 @@ export default function ProduitsPage() {
         }
         toast.success('Produit modifié');
       } else {
-        const created = await produitsApi.create(payload).catch(() => null);
-        if (created) {
+        if (USE_API) {
+          const created = await produitsApi.create(payload);
           addProduit(created);
         } else {
           const cat = categories.find(c => c.id === form.categorieId);
@@ -149,8 +168,8 @@ export default function ProduitsPage() {
         toast.success('Produit créé');
       }
       setShowModal(false);
-    } catch {
-      toast.error('Une erreur est survenue');
+    } catch (err: any) {
+      toast.error(err.message || 'Une erreur est survenue');
     } finally {
       setLoading(false);
     }
@@ -159,9 +178,15 @@ export default function ProduitsPage() {
   const handleDelete = async (p: Produit, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!confirm(`Supprimer le produit "${p.designation}" ?`)) return;
-    await produitsApi.remove(p.id).catch(() => null);
-    deleteProduit(p.id);
-    toast.success('Produit supprimé');
+    try {
+      if (USE_API) {
+        await produitsApi.remove(p.id);
+      }
+      deleteProduit(p.id);
+      toast.success('Produit supprimé');
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors de la suppression');
+    }
   };
 
   return (
@@ -172,11 +197,20 @@ export default function ProduitsPage() {
           <p className="text-[10px] font-mono tracking-widest uppercase mb-1" style={{ color: 'var(--color-ink-muted)' }}>Catalogue</p>
           <h1 className="text-3xl font-bold" style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>Produits & Stock</h1>
         </div>
-        {canEdit && (
-          <button className="btn-primary" onClick={openCreate}>
-            <Plus size={15} /> Nouveau produit
+        <div className="flex items-center gap-2">
+          <button
+            className="btn-secondary"
+            onClick={() => navigate('/produits/etiquettes')}
+            title="Générer des étiquettes"
+          >
+            <Tag size={15} /> Étiquettes
           </button>
-        )}
+          {canEdit && (
+            <button className="btn-primary" onClick={openCreate}>
+              <Plus size={15} /> Nouveau produit
+            </button>
+          )}
+        </div>
       </div>
 
       {/* KPIs */}
@@ -209,14 +243,14 @@ export default function ProduitsPage() {
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-ink-muted)' }} />
           <input className="input pl-9" placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <select
-          className="input w-auto"
-          value={catFilter}
-          onChange={(e) => setCatFilter(e.target.value)}
-        >
-          <option value="tous">Toutes catégories</option>
-          {categories.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
-        </select>
+        <SearchableSelect
+          className="w-48"
+          options={categories.map(c => ({ value: c.id, label: c.nom }))}
+          value={catFilter === 'tous' ? '' : catFilter}
+          onChange={val => setCatFilter(val || 'tous')}
+          emptyLabel="Toutes catégories"
+          placeholder="Filtrer par catégorie…"
+        />
         <div className="flex gap-2">
           {(['tous', 'alerte', 'rupture'] as const).map((f) => (
             <button
@@ -240,21 +274,21 @@ export default function ProduitsPage() {
         <table className="table-auto w-full">
           <thead>
             <tr>
-              <th>Référence</th>
-              <th>Désignation</th>
-              <th>Catégorie</th>
-              <th>Fournisseur</th>
-              <th>Prix achat</th>
-              <th>Prix vente</th>
-              <th>Stock</th>
-              <th>Statut</th>
+              <SortableHeader column="reference" label="Référence" sort={table.sort} onSort={table.setSort} />
+              <SortableHeader column="designation" label="Désignation" sort={table.sort} onSort={table.setSort} />
+              <SortableHeader column="categorie" label="Catégorie" sort={table.sort} onSort={table.setSort} />
+              <SortableHeader column="fournisseur" label="Fournisseur" sort={table.sort} onSort={table.setSort} />
+              <SortableHeader column="prixAchat" label="Prix achat" sort={table.sort} onSort={table.setSort} align="right" />
+              <SortableHeader column="prixVente" label="Prix vente" sort={table.sort} onSort={table.setSort} align="right" />
+              <SortableHeader column="stockActuel" label="Stock" sort={table.sort} onSort={table.setSort} align="right" />
+              <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-ink-muted)' }}>Statut</th>
               {canEdit && <th></th>}
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {table.paginatedData.length === 0 ? (
               <tr><td colSpan={canEdit ? 9 : 8} className="text-center py-10" style={{ color: 'var(--color-ink-muted)' }}>Aucun produit trouvé</td></tr>
-            ) : filtered.map((p) => {
+            ) : table.paginatedData.map((p) => {
               const isRupture = p.stockActuel === 0;
               const isAlerte = !isRupture && p.stockActuel <= p.stockMinimum;
               return (
@@ -319,6 +353,14 @@ export default function ProduitsPage() {
             })}
           </tbody>
         </table>
+        <Pagination
+          page={table.page}
+          totalPages={table.totalPages}
+          totalItems={table.totalItems}
+          pageSize={table.pageSize}
+          onPageChange={table.setPage}
+          onPageSizeChange={table.setPageSize}
+        />
       </div>
 
       {/* Modal Create / Edit */}
@@ -356,11 +398,14 @@ export default function ProduitsPage() {
                 </div>
                 <div>
                   <label className="label">Unité *</label>
-                  <select className="input" value={form.unite} onChange={e => setForm(f => ({ ...f, unite: e.target.value }))}>
-                    {['pièce', 'boîte', 'ramette', 'kg', 'litre', 'mètre', 'paquet', 'carton'].map(u => (
-                      <option key={u} value={u}>{u}</option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    required
+                    options={['pièce', 'boîte', 'ramette', 'kg', 'litre', 'mètre', 'paquet', 'carton'].map(u => ({ value: u, label: u }))}
+                    value={form.unite}
+                    onChange={val => setForm(f => ({ ...f, unite: val }))}
+                    emptyLabel="Sélectionner…"
+                    placeholder="Rechercher une unité…"
+                  />
                 </div>
               </div>
 
@@ -378,17 +423,23 @@ export default function ProduitsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="label">Catégorie</label>
-                  <select className="input" value={form.categorieId} onChange={e => setForm(f => ({ ...f, categorieId: e.target.value }))}>
-                    <option value="">Sélectionner…</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
-                  </select>
+                  <SearchableSelect
+                    options={categories.map(c => ({ value: c.id, label: c.nom }))}
+                    value={form.categorieId}
+                    onChange={val => setForm(f => ({ ...f, categorieId: val }))}
+                    emptyLabel="— Aucune —"
+                    placeholder="Rechercher une catégorie…"
+                  />
                 </div>
                 <div>
                   <label className="label">Fournisseur</label>
-                  <select className="input" value={form.fournisseurId} onChange={e => setForm(f => ({ ...f, fournisseurId: e.target.value }))}>
-                    <option value="">Sélectionner…</option>
-                    {fournisseurs.map(f => <option key={f.id} value={f.id}>{f.nom}</option>)}
-                  </select>
+                  <SearchableSelect
+                    options={fournisseurs.map(fourn => ({ value: fourn.id, label: fourn.nom }))}
+                    value={form.fournisseurId}
+                    onChange={val => setForm(f => ({ ...f, fournisseurId: val }))}
+                    emptyLabel="— Aucun —"
+                    placeholder="Rechercher un fournisseur…"
+                  />
                 </div>
               </div>
 
@@ -401,6 +452,38 @@ export default function ProduitsPage() {
                     value={form.marque}
                     onChange={e => setForm(f => ({ ...f, marque: e.target.value }))}
                   />
+                </div>
+                <div>
+                  <label className="label">Magasin (affectation)</label>
+                  <SearchableSelect
+                    options={magasins.map(m => ({ value: m.id, label: m.nom }))}
+                    value={form.magasinId}
+                    onChange={val => setForm(f => ({ ...f, magasinId: val }))}
+                    emptyLabel="— Aucun (Global) —"
+                    placeholder="Sélectionner un magasin…"
+                  />
+                  <p className="text-[9px] mt-1" style={{ color: 'var(--color-ink-muted)' }}>Laisser vide pour rendre cet article disponible globalement.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Code-barres</label>
+                  <div className="flex gap-2">
+                    <input
+                      className="input flex-1"
+                      placeholder="Ex: 361427204..."
+                      value={form.codeBarres}
+                      onChange={e => setForm(f => ({ ...f, codeBarres: e.target.value }))}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toast('Fonction de scan caméra à implémenter', { icon: '📷' })}
+                      className="p-3 bg-cream hover:bg-gold/10 text-gold rounded-xl transition-colors" title="Scanner"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="label">Emplacement</label>
@@ -431,7 +514,7 @@ export default function ProduitsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-4 gap-4">
                 <div>
                   <label className="label">Stock actuel</label>
                   <input type="number" min="0" className="input" value={form.stockActuel}
@@ -446,6 +529,11 @@ export default function ProduitsPage() {
                   <label className="label">Stock max.</label>
                   <input type="number" min="0" className="input" value={form.stockMaximum ?? ''}
                     onChange={e => setForm(f => ({ ...f, stockMaximum: e.target.value ? +e.target.value : undefined }))} />
+                </div>
+                <div>
+                  <label className="label">Date péremption</label>
+                  <input type="date" className="input" value={form.datePeremption}
+                    onChange={e => setForm(f => ({ ...f, datePeremption: e.target.value }))} />
                 </div>
               </div>
 

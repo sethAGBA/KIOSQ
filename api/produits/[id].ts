@@ -1,29 +1,35 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { getDb } from '../../db/client';
-import { produits } from '../../db/schema';
-import { requireAuth, handleOptions } from '../_lib/auth';
-import { ok, err, numericRow } from '../_lib/response';
+import { getDb } from '../../db/client.js';
+import { produits } from '../../db/schema.js';
+import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { ok, err, numericRow, parseBody} from '../_lib/response.js';
+
+const emptyToUndefined = z.string().optional().transform(v => v === '' ? undefined : v);
 
 const PatchSchema = z.object({
   designation:   z.string().optional(),
-  description:   z.string().optional(),
-  categorieId:   z.string().optional(),
-  fournisseurId: z.string().optional(),
+  description:   emptyToUndefined,
+  categorieId:   emptyToUndefined,
+  fournisseurId: emptyToUndefined,
   unite:         z.string().optional(),
-  marque:        z.string().optional(),
+  marque:        emptyToUndefined,
   prixAchat:     z.number().optional(),
   prixVente:     z.number().optional(),
   prixVenteGros: z.number().optional(),
   stockActuel:   z.number().int().optional(),
   stockMinimum:  z.number().int().optional(),
   stockMaximum:  z.number().int().optional(),
-  emplacement:   z.string().optional(),
+  datePeremption:z.string().optional(),
+  emplacement:   emptyToUndefined,
+  codeBarres:    z.string().optional(),
+  magasinId:     z.string().optional(),
   actif:         z.boolean().optional(),
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const body = await parseBody(req);
   if (handleOptions(req, res)) return;
   const ctx = await requireAuth(req, res);
   if (!ctx) return;
@@ -41,7 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'PATCH') {
     if (!['admin', 'gestionnaire'].includes(ctx.role)) return err(res, 'Accès refusé', 403);
-    const parsed = PatchSchema.safeParse(req.body);
+    const parsed = PatchSchema.safeParse(body);
     if (!parsed.success) return err(res, 'Données invalides', 422);
     try {
       const updates: Record<string, unknown> = { updatedAt: new Date() };
@@ -57,7 +63,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (parsed.data.stockActuel   !== undefined) updates.stockActuel   = parsed.data.stockActuel;
       if (parsed.data.stockMinimum  !== undefined) updates.stockMinimum  = parsed.data.stockMinimum;
       if (parsed.data.stockMaximum  !== undefined) updates.stockMaximum  = parsed.data.stockMaximum;
+      if (parsed.data.datePeremption!== undefined) updates.datePeremption= parsed.data.datePeremption ? new Date(parsed.data.datePeremption) : null;
       if (parsed.data.emplacement   !== undefined) updates.emplacement   = parsed.data.emplacement;
+      if (parsed.data.codeBarres    !== undefined) updates.codeBarres    = parsed.data.codeBarres;
+      if (parsed.data.magasinId     !== undefined) updates.magasinId     = parsed.data.magasinId;
       if (parsed.data.actif         !== undefined) updates.actif         = parsed.data.actif;
       const [row] = await db.update(produits)
         .set(updates as Parameters<ReturnType<typeof db.update<typeof produits>>['set']>[0])

@@ -2,10 +2,10 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { desc } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
-import { getDb } from '../../db/client';
-import { fournisseurs } from '../../db/schema';
-import { requireAuth, handleOptions } from '../_lib/auth';
-import { ok, err, numericRows, numericRow } from '../_lib/response';
+import { getDb } from '../../db/client.js';
+import { fournisseurs } from '../../db/schema.js';
+import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { ok, err, numericRows, numericRow, parseBody} from '../_lib/response.js';
 
 const FournisseurSchema = z.object({
   nom:                z.string().min(1),
@@ -20,6 +20,7 @@ const FournisseurSchema = z.object({
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const body = await parseBody(req);
   if (handleOptions(req, res)) return;
   const ctx = await requireAuth(req, res);
   if (!ctx) return;
@@ -35,7 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'POST') {
     if (!['admin', 'gestionnaire'].includes(ctx.role)) return err(res, 'Accès refusé', 403);
-    const parsed = FournisseurSchema.safeParse(req.body);
+    const parsed = FournisseurSchema.safeParse(body);
     if (!parsed.success) return err(res, 'Données invalides', 422);
     try {
       const [row] = await db.insert(fournisseurs).values({

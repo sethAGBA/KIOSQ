@@ -11,10 +11,10 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
-import { getDb } from '../../db/client';
-import { factures, clients, produits } from '../../db/schema';
-import { requireAuth, handleOptions } from '../_lib/auth';
-import { ok, err, numericRow } from '../_lib/response';
+import { getDb } from '../../db/client.js';
+import { factures, clients, produits } from '../../db/schema.js';
+import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { ok, err, numericRow, parseBody} from '../_lib/response.js';
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 const LigneSchema = z.object({
@@ -44,6 +44,7 @@ const VenteSchema = z.object({
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const body = await parseBody(req);
   if (handleOptions(req, res)) return;
   if (req.method !== 'POST') return err(res, 'Méthode non autorisée', 405);
 
@@ -51,7 +52,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!ctx) return;
 
   // All authenticated users can make sales
-  const parsed = VenteSchema.safeParse(req.body);
+  const parsed = VenteSchema.safeParse(body);
   if (!parsed.success) {
     return err(
       res,
@@ -121,12 +122,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(factures);
     const numero = `TIC-${year}-${String((count ?? 0) + 1).padStart(4, '0')}`;
 
-    // ── 4. Insert facture ─────────────────────────────────────────────────────
+    // Calculate partial payment
+    const effectiveRecu = montantRecu > 0 ? montantRecu : totalTTC;
+    const reste = Math.max(0, totalTTC - effectiveRecu);
+    const mPaye = totalTTC - reste;
+
+    if (reste > 0 && resolvedClientId === 'anonyme') {
+      return err(res, 'Un client doit être identifié pour accorder un crédit (paiement partiel).', 400);
+    }
+
     const factureId = nanoid();
     const now = new Date();
     const paiement = {
       id:      nanoid(),
-      montant: totalTTC,
+      montant: mPaye,
       mode:    modePaiement,
       date:    now.toISOString(),
     };
@@ -147,14 +156,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       clientId:      resolvedClientId,
       clientNom:     resolvedClientNom,
       clientEmail:   resolvedClientEmail,
-      statut:        'payee',
+      statut:        reste > 0 ? 'partielle' : 'payee',
       lignes:        lignesFormatted,
       totalHT:       String(totalHT),
       remiseGlobale: String(remiseGlobale),
       tva:           String(tva),
       totalTTC:      String(totalTTC),
-      montantPaye:   String(totalTTC),
-      resteAPayer:   '0',
+      montantPaye:   String(mPaye),
+      resteAPayer:   String(reste),
       paiements:     [paiement],
       dateFacture:   now,
       dateEcheance:  now,
@@ -170,6 +179,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .set({
           totalAchats:     sql`total_achats + ${String(totalTTC)}`,
           nombreCommandes: sql`nombre_commandes + 1`,
+          soldeCredit:     sql`solde_credit + ${String(reste)}`,
           derniereCommande: now,
           updatedAt:       now,
         })

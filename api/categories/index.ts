@@ -1,11 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { nanoid } from 'nanoid';
-import { getDb } from '../../db/client';
-import { categories } from '../../db/schema';
-import { requireAuth, handleOptions } from '../_lib/auth';
-import { ok, err } from '../_lib/response';
+import { getDb } from '../../db/client.js';
+import { categories } from '../../db/schema.js';
+import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { ok, err, parseBody } from '../_lib/response.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const body = await parseBody(req);
   if (handleOptions(req, res)) return;
   const ctx = await requireAuth(req, res);
   if (!ctx) return;
@@ -21,7 +22,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'POST') {
     if (ctx.role !== 'admin') return err(res, 'Accès refusé', 403);
-    const { nom, description, couleur } = req.body as { nom: string; description?: string; couleur?: string };
+    const { nom, description, couleur } = body as { nom: string; description?: string; couleur?: string };
     if (!nom) return err(res, 'Nom requis', 422);
     try {
       const [row] = await db.insert(categories).values({ id: nanoid(), nom, description, couleur }).returning();

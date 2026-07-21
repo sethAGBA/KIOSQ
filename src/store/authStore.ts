@@ -1,10 +1,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { AppUser } from '@/types';
-import { authApi } from '@/lib/api';
+import { authApi, USE_API } from '@/lib/api';
 import { mockUsers } from '@/data/mock';
 
-const USE_API = Boolean(import.meta.env.VITE_API_URL);
+
 
 interface AuthState {
   user: AppUser | null;

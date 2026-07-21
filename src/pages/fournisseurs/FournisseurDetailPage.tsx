@@ -1,13 +1,18 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Mail, Phone, MapPin, Truck, Package, Edit, ArrowUpRight, Clock } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, MapPin, Truck, Package, Edit, ArrowUpRight, Clock, RotateCcw } from 'lucide-react';
 import clsx from 'clsx';
 import { useAppStore } from '@/store/appStore';
 import { formatPrice, formatDate, statutColor, statutLabel } from '@/lib/format';
+import { useState } from 'react';
+import toast from 'react-hot-toast';
+import ReglementDetteFournisseurModal from '@/components/fournisseurs/ReglementDetteFournisseurModal';
 
 export default function FournisseurDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { fournisseurs, commandesFournisseurs } = useAppStore();
+  const { fournisseurs, commandesFournisseurs, reglerDetteFournisseur, annulerDernierReglementFournisseur } = useAppStore();
+  const [showReglement, setShowReglement] = useState(false);
+  const [annulLoading, setAnnulLoading] = useState(false);
 
   const fournisseur = fournisseurs.find(f => f.id === id);
 
@@ -20,6 +25,29 @@ export default function FournisseurDetailPage() {
 
   const cmds = commandesFournisseurs.filter(c => c.fournisseurId === id);
   const cmdEnCours = cmds.filter(c => ['commandee', 'recu_partiel'].includes(c.statut)).length;
+
+  const handleReglement = async (montant: number, modePaiement: string) => {
+    try {
+      await reglerDetteFournisseur(fournisseur.id, montant, modePaiement);
+      toast.success('Règlement enregistré');
+      setShowReglement(false);
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors du règlement');
+    }
+  };
+
+  const handleAnnulerDernierReglement = async () => {
+    if (!window.confirm('Annuler le dernier r\u00e8glement de dette de ce fournisseur ?')) return;
+    setAnnulLoading(true);
+    try {
+      await annulerDernierReglementFournisseur(fournisseur.id);
+      toast.success('Dernier r\u00e8glement annul\u00e9');
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors de l\'annulation');
+    } finally {
+      setAnnulLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -109,9 +137,30 @@ export default function FournisseurDetailPage() {
         </div>
         <div className="card p-4">
           <p className="label">Dette actuelle</p>
-          <p className="text-xl font-bold" style={{ color: fournisseur.soldeDette > 0 ? '#d97706' : '#16a34a' }}>
-            {formatPrice(fournisseur.soldeDette)}
-          </p>
+          <div className="flex flex-col items-center gap-2 mt-1">
+            <p className="text-xl font-bold" style={{ color: fournisseur.soldeDette > 0 ? '#d97706' : '#16a34a' }}>
+              {formatPrice(fournisseur.soldeDette)}
+            </p>
+            {fournisseur.soldeDette > 0 && (
+              <div className="flex flex-col gap-1.5 w-full">
+                <button 
+                  onClick={() => setShowReglement(true)} 
+                  className="btn-primary text-xs py-1 px-3 w-full"
+                >
+                  Régler
+                </button>
+                <button
+                  onClick={handleAnnulerDernierReglement}
+                  disabled={annulLoading}
+                  className="text-xs py-1 px-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-1"
+                  style={{ backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}
+                >
+                  <RotateCcw size={11} />
+                  {annulLoading ? '...' : 'Annuler dernier'}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
         <div className="card p-4">
           <p className="label">Délai livraison</p>
@@ -192,6 +241,14 @@ export default function FournisseurDetailPage() {
           <p className="label mb-2">Notes internes</p>
           <p className="text-sm" style={{ color: 'var(--color-ink)' }}>{fournisseur.notes}</p>
         </div>
+      )}
+
+      {showReglement && (
+        <ReglementDetteFournisseurModal
+          fournisseur={fournisseur}
+          onClose={() => setShowReglement(false)}
+          onSubmit={handleReglement}
+        />
       )}
     </div>
   );

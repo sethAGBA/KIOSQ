@@ -1,13 +1,19 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Download, ArrowUpRight, Clock, X, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
+import jsPDF from 'jspdf';
 import { useAppStore } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
-import { facturesApi } from '@/lib/api';
+import { facturesApi, parametresApi, USE_API } from '@/lib/api';
 import { formatPrice, formatDate, statutColor, statutLabel } from '@/lib/format';
 import type { Facture } from '@/types';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { useTableControls } from '@/hooks/useTableControls';
+import { SortableHeader } from '@/components/ui/SortableHeader';
+import { Pagination } from '@/components/ui/Pagination';
+
 
 const STATUTS = ['tous', 'brouillon', 'envoyee', 'payee', 'partielle', 'en_retard', 'annulee'] as const;
 
@@ -44,6 +50,131 @@ export default function FacturationPage() {
 
   const canCreate = user?.role === 'admin' || user?.role === 'comptable' || user?.role === 'gestionnaire';
 
+  const DEFAULT_CFG = { nom: 'Kiosq Commercial', adresse: 'Dakar, Sénégal', telephone: '+221 33 800 00 00', email: 'contact@kiosq.com', piedDePage: 'Merci pour votre confiance', logoUrl: '' };
+  const [cfg, setCfg] = useState(DEFAULT_CFG);
+
+  useEffect(() => {
+    if (USE_API) {
+      parametresApi.get()
+        .then(data => setCfg({
+          nom:        data.nom        ?? DEFAULT_CFG.nom,
+          adresse:    data.adresse    ?? DEFAULT_CFG.adresse,
+          telephone:  data.telephone  ?? DEFAULT_CFG.telephone,
+          email:      data.email      ?? DEFAULT_CFG.email,
+          piedDePage: data.piedDePage ?? DEFAULT_CFG.piedDePage,
+          logoUrl:    data.logoUrl    ?? '',
+        }))
+        .catch(() => {});
+    } else {
+      try {
+        const stored = localStorage.getItem('kiosq_config');
+        if (stored) setCfg(prev => ({ ...prev, ...JSON.parse(stored) }));
+      } catch { }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const pdfPrice = (n: number) =>
+    formatPrice(n).replace(/[\u00a0\u202f\u2009\u2007\u2008]/g, ' ');
+
+  const handleQuickPDF = async (e: React.MouseEvent, f: Facture) => {
+    e.stopPropagation();
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const margin = 15;
+    const pageWidth = 210;
+    const startY = 15;
+
+    // ── Colonne gauche : Logo + coordonnées ──────────────────────
+    let leftY = startY;
+    if (cfg.logoUrl) {
+      const logoRendered = await new Promise<number>(resolve => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+            const ctx2d = canvas.getContext('2d');
+            if (ctx2d) {
+              ctx2d.drawImage(img, 0, 0);
+              const ratio = img.naturalWidth / img.naturalHeight;
+              const logoW = 32, logoH = logoW / ratio;
+              doc.addImage(canvas.toDataURL('image/png'), 'PNG', margin, leftY, logoW, Math.min(logoH, 20));
+              resolve(Math.min(logoH, 20));
+            } else resolve(0);
+          } catch { resolve(0); }
+        };
+        img.onerror = () => resolve(0);
+        img.src = cfg.logoUrl;
+      });
+      if (logoRendered > 0) leftY += logoRendered + 3;
+    }
+
+    doc.setFontSize(13); doc.setFont('helvetica', 'bold');
+    doc.text(cfg.nom.toUpperCase(), margin, leftY); leftY += 5;
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'normal');
+    if (cfg.email)    { doc.text(cfg.email,    margin, leftY); leftY += 4; }
+    if (cfg.telephone){ doc.text(cfg.telephone, margin, leftY); leftY += 4; }
+
+    // ── Colonne droite : FACTURE + numéro ────────────────────────
+    doc.setFontSize(26); doc.setFont('helvetica', 'bold');
+    doc.text('FACTURE', pageWidth - margin, startY + 10, { align: 'right' });
+    doc.setFontSize(11); doc.setFont('helvetica', 'normal');
+    doc.text(f.numero, pageWidth - margin, startY + 18, { align: 'right' });
+    doc.setFontSize(8); doc.setTextColor(150, 150, 150);
+    doc.text(statutLabel(f.statut).toUpperCase(), pageWidth - margin, startY + 24, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
+
+    // ── Séparateur ───────────────────────────────────────────────
+    let y = Math.max(leftY, startY + 30) + 4;
+    doc.setLineWidth(0.4); doc.line(margin, y, pageWidth - margin, y); y += 7;
+
+    doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+    doc.text('Client :', margin, y);
+    doc.text('Dates :', 130, y); y += 4;
+    doc.setFont('helvetica', 'normal');
+    doc.text(f.clientNom, margin, y);
+    doc.text(`Date :      ${formatDate(f.dateFacture)}`, 130, y); y += 4;
+    doc.text(`Échéance : ${formatDate(f.dateEcheance)}`, 130, y); y += 10;
+
+    // Articles
+    doc.setFillColor(245, 245, 245);
+    doc.rect(margin, y - 4, pageWidth - margin * 2, 7, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
+    doc.text('Désignation', margin + 1, y);
+    doc.text('Qté', 130, y, { align: 'right' });
+    doc.text('P.U.', 155, y, { align: 'right' });
+    doc.text('Total', pageWidth - margin, y, { align: 'right' });
+    y += 6; doc.setFont('helvetica', 'normal');
+    for (const l of f.lignes) {
+      const name = doc.splitTextToSize(l.designation, 105);
+      doc.text(name, margin + 1, y);
+      doc.text(`${l.quantite}`, 130, y, { align: 'right' });
+      doc.text(pdfPrice(l.prixUnitaire), 155, y, { align: 'right' });
+      doc.text(pdfPrice(l.total), pageWidth - margin, y, { align: 'right' });
+      y += name.length > 1 ? name.length * 4 : 5;
+    }
+
+    // Totaux
+    y += 3; doc.line(margin, y, pageWidth - margin, y); y += 5;
+    const addRow = (label: string, val: string, bold = false) => {
+      if (bold) doc.setFont('helvetica', 'bold'); else doc.setFont('helvetica', 'normal');
+      doc.text(label, 150, y, { align: 'right' });
+      doc.text(val, pageWidth - margin, y, { align: 'right' }); y += 5;
+    };
+    addRow('Total HT :', pdfPrice(f.totalHT));
+    if (f.tva > 0) addRow(`TVA (${f.tva}%) :`, pdfPrice(f.totalTTC - f.totalHT));
+    addRow('TOTAL TTC :', pdfPrice(f.totalTTC), true);
+    if (f.montantPaye > 0) addRow('Payé :', `- ${pdfPrice(f.montantPaye)}`);
+    if (f.resteAPayer > 0) addRow('Reste à payer :', pdfPrice(f.resteAPayer), true);
+
+    if (cfg.piedDePage) {
+      y += 8; doc.setFontSize(8); doc.setFont('helvetica', 'italic');
+      doc.text(cfg.piedDePage, pageWidth / 2, y, { align: 'center' });
+    }
+    doc.save(`facture-${f.numero}.pdf`);
+  };
+
   const filtered = useMemo(() => {
     return factures.filter((f) => {
       const matchSearch =
@@ -53,6 +184,8 @@ export default function FacturationPage() {
       return matchSearch && matchStatut;
     });
   }, [factures, search, statutFilter]);
+
+  const table = useTableControls(filtered, { defaultSort: 'dateFacture', defaultDirection: 'desc' });
 
   const kpis = useMemo(() => ({
     totalFacture:  factures.reduce((s, f) => s + f.totalTTC, 0),
@@ -125,8 +258,8 @@ export default function FacturationPage() {
         notes: formNotes || undefined,
       };
 
-      const created = await facturesApi.create(payload).catch(() => null);
-      if (created) {
+      if (USE_API) {
+        const created = await facturesApi.create(payload);
         addFacture(created);
       } else {
         const client = clients.find(c => c.id === formClientId);
@@ -225,21 +358,21 @@ export default function FacturationPage() {
         <table className="table-auto w-full">
           <thead>
             <tr>
-              <th>Numéro</th>
-              <th>Client</th>
-              <th>Total TTC</th>
-              <th>Payé</th>
-              <th>Reste à payer</th>
-              <th>Statut</th>
-              <th>Date</th>
-              <th>Échéance</th>
+              <SortableHeader column="numero" label="Numéro" sort={table.sort} onSort={table.setSort} />
+              <SortableHeader column="clientNom" label="Client" sort={table.sort} onSort={table.setSort} />
+              <SortableHeader column="totalTTC" label="Total TTC" sort={table.sort} onSort={table.setSort} align="right" />
+              <SortableHeader column="montantPaye" label="Payé" sort={table.sort} onSort={table.setSort} align="right" />
+              <SortableHeader column="resteAPayer" label="Reste à payer" sort={table.sort} onSort={table.setSort} align="right" />
+              <SortableHeader column="statut" label="Statut" sort={table.sort} onSort={table.setSort} />
+              <SortableHeader column="dateFacture" label="Date" sort={table.sort} onSort={table.setSort} />
+              <SortableHeader column="dateEcheance" label="Échéance" sort={table.sort} onSort={table.setSort} />
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {table.paginatedData.length === 0 ? (
               <tr><td colSpan={9} className="text-center py-10" style={{ color: 'var(--color-ink-muted)' }}>Aucune facture trouvée</td></tr>
-            ) : filtered.map((f) => {
+            ) : table.paginatedData.map((f) => {
               const isRetard = f.statut === 'en_retard';
               return (
                 <tr key={f.id} className="cursor-pointer" onClick={() => navigate(`/facturation/${f.id}`)}>
@@ -263,7 +396,7 @@ export default function FacturationPage() {
                   <td>
                     <div className="flex gap-1">
                       <button
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={(e) => handleQuickPDF(e, f)}
                         className="p-1.5 rounded-lg transition-colors"
                         style={{ color: 'var(--color-ink-muted)' }}
                         title="Télécharger PDF"
@@ -278,6 +411,14 @@ export default function FacturationPage() {
             })}
           </tbody>
         </table>
+        <Pagination
+          page={table.page}
+          totalPages={table.totalPages}
+          totalItems={table.totalItems}
+          pageSize={table.pageSize}
+          onPageChange={table.setPage}
+          onPageSizeChange={table.setPageSize}
+        />
       </div>
 
       {/* Modal Nouvelle facture */}
@@ -295,30 +436,24 @@ export default function FacturationPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="label">Client *</label>
-                  <select
+                  <SearchableSelect
                     required
-                    className="input"
+                    options={clients.filter(c => c.actif).map(c => ({ value: c.id, label: c.nom }))}
                     value={formClientId}
-                    onChange={e => setFormClientId(e.target.value)}
-                  >
-                    <option value="">Sélectionner…</option>
-                    {clients.filter(c => c.actif).map(c => (
-                      <option key={c.id} value={c.id}>{c.nom}</option>
-                    ))}
-                  </select>
+                    onChange={val => setFormClientId(val)}
+                    emptyLabel="Sélectionner…"
+                    placeholder="Rechercher un client…"
+                  />
                 </div>
                 <div>
                   <label className="label">Commande liée (optionnel)</label>
-                  <select
-                    className="input"
+                  <SearchableSelect
+                    options={commandes.filter(c => c.type === 'commande').map(c => ({ value: c.id, label: `${c.numero} — ${c.clientNom}` }))}
                     value={formCommandeId}
-                    onChange={e => handleSelectCommande(e.target.value)}
-                  >
-                    <option value="">Aucune</option>
-                    {commandes.filter(c => c.type === 'commande').map(c => (
-                      <option key={c.id} value={c.id}>{c.numero} — {c.clientNom}</option>
-                    ))}
-                  </select>
+                    onChange={val => handleSelectCommande(val)}
+                    emptyLabel="Aucune"
+                    placeholder="Rechercher une commande…"
+                  />
                 </div>
               </div>
 

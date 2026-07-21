@@ -5,7 +5,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAppStore } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
-import { commandesApi } from '@/lib/api';
+import { commandesApi, USE_API } from '@/lib/api';
 import { formatPrice, formatDate, statutColor, statutLabel } from '@/lib/format';
 import type { Commande } from '@/types';
 
@@ -40,15 +40,15 @@ export default function CommandeDetailPage() {
     if (newStatut === commande.statut) return;
     setUpdating(true);
     try {
-      const updated = await commandesApi.update(commande.id, { statut: newStatut }).catch(() => null);
-      if (updated) {
+      if (USE_API) {
+        const updated = await commandesApi.update(commande.id, { statut: newStatut });
         updateCommande(commande.id, updated);
       } else {
         updateCommande(commande.id, { statut: newStatut, updatedAt: new Date() });
       }
       toast.success(`Statut mis à jour : ${statutLabel(newStatut)}`);
-    } catch {
-      toast.error('Erreur lors de la mise à jour');
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors de la mise à jour');
     } finally {
       setUpdating(false);
     }

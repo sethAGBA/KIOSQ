@@ -2,10 +2,12 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import bcrypt from 'bcryptjs';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { getDb } from '../../db/client';
-import { users } from '../../db/schema';
-import { signToken, setAuthCookie, handleOptions } from '../_lib/auth';
-import { ok, err } from '../_lib/response';
+import { getDb } from '../../db/client.js';
+import { users } from '../../db/schema.js';
+import { signToken, setAuthCookie, handleOptions } from '../_lib/auth.js';
+import { ok, err, parseBody } from '../_lib/response.js';
+
+export const config = { api: { bodyParser: true } };
 
 const LoginSchema = z.object({
   email:    z.string().email(),
@@ -16,9 +18,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res)) return;
   if (req.method !== 'POST') return err(res, 'Méthode non autorisée', 405);
 
-  const parsed = LoginSchema.safeParse(req.body);
+  const body = await parseBody(req);
+  const parsed = LoginSchema.safeParse(body);
   if (!parsed.success) {
-    console.error('[login] Zod errors:', JSON.stringify(parsed.error.errors));
+    console.error('[login] Zod errors:', JSON.stringify(parsed.error.issues));
     return err(res, 'Données invalides', 422);
   }
 

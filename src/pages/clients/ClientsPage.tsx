@@ -5,9 +5,12 @@ import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { useAppStore } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
-import { clientsApi } from '@/lib/api';
+import { clientsApi, USE_API } from '@/lib/api';
 import { formatPrice, formatDate } from '@/lib/format';
 import type { Client } from '@/types';
+import { useTableControls } from '@/hooks/useTableControls';
+import { SortableHeader } from '@/components/ui/SortableHeader';
+import { Pagination } from '@/components/ui/Pagination';
 
 const EMPTY_FORM = {
   nom: '',
@@ -49,6 +52,8 @@ export default function ClientsPage() {
     });
   }, [clients, search, typeFilter]);
 
+  const table = useTableControls(filtered, { defaultSort: 'nom', defaultDirection: 'asc' });
+
   const totalCA = clients.reduce((s, c) => s + c.totalAchats, 0);
   const totalCreances = clients.reduce((s, c) => s + c.soldeCredit, 0);
 
@@ -81,20 +86,18 @@ export default function ClientsPage() {
     setLoading(true);
     try {
       if (editing) {
-        const updated = await clientsApi.update(editing.id, form).catch(() => null);
-        if (updated) {
+        if (USE_API) {
+          const updated = await clientsApi.update(editing.id, form);
           updateClient(editing.id, updated);
         } else {
-          // Fallback: update locally in mock mode
           updateClient(editing.id, { ...form, updatedAt: new Date() });
         }
         toast.success('Client modifié');
       } else {
-        const created = await clientsApi.create(form).catch(() => null);
-        if (created) {
+        if (USE_API) {
+          const created = await clientsApi.create(form);
           addClient(created);
         } else {
-          // Fallback: add locally in mock mode
           addClient({
             ...form,
             id: `cl-${Date.now()}`,
@@ -106,8 +109,8 @@ export default function ClientsPage() {
         toast.success('Client créé');
       }
       setShowModal(false);
-    } catch {
-      toast.error('Une erreur est survenue');
+    } catch (err: any) {
+      toast.error(err.message || 'Une erreur est survenue');
     } finally {
       setLoading(false);
     }
@@ -117,11 +120,13 @@ export default function ClientsPage() {
     e.stopPropagation();
     if (!confirm(`Désactiver le client "${c.nom}" ?`)) return;
     try {
-      await clientsApi.remove(c.id).catch(() => null);
+      if (USE_API) {
+        await clientsApi.remove(c.id);
+      }
       deleteClient(c.id);
       toast.success('Client désactivé');
-    } catch {
-      toast.error('Erreur lors de la suppression');
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors de la suppression');
     }
   };
 
@@ -190,25 +195,25 @@ export default function ClientsPage() {
         <table className="table-auto w-full">
           <thead>
             <tr>
-              <th>Client</th>
-              <th>Contact</th>
-              <th>Type</th>
-              <th>Commandes</th>
-              <th>CA total</th>
-              <th>Créance</th>
-              <th>Dernière cmd</th>
+              <SortableHeader column="nom" label="Client" sort={table.sort} onSort={table.setSort} />
+              <SortableHeader column="email" label="Contact" sort={table.sort} onSort={table.setSort} />
+              <SortableHeader column="typeClient" label="Type" sort={table.sort} onSort={table.setSort} />
+              <SortableHeader column="nombreCommandes" label="Commandes" sort={table.sort} onSort={table.setSort} align="right" />
+              <SortableHeader column="totalAchats" label="CA total" sort={table.sort} onSort={table.setSort} align="right" />
+              <SortableHeader column="soldeCredit" label="Créance" sort={table.sort} onSort={table.setSort} align="right" />
+              <SortableHeader column="derniereCommande" label="Dernière cmd" sort={table.sort} onSort={table.setSort} />
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {table.paginatedData.length === 0 ? (
               <tr>
                 <td colSpan={8} className="text-center py-10" style={{ color: 'var(--color-ink-muted)' }}>
                   Aucun client trouvé
                 </td>
               </tr>
             ) : (
-              filtered.map((c) => (
+              table.paginatedData.map((c) => (
                 <tr
                   key={c.id}
                   className="cursor-pointer"
@@ -288,6 +293,14 @@ export default function ClientsPage() {
             )}
           </tbody>
         </table>
+        <Pagination
+          page={table.page}
+          totalPages={table.totalPages}
+          totalItems={table.totalItems}
+          pageSize={table.pageSize}
+          onPageChange={table.setPage}
+          onPageSizeChange={table.setPageSize}
+        />
       </div>
 
       {/* Modal Create / Edit */}

@@ -1,13 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Download, Send, CheckCircle, Printer, CreditCard, X } from 'lucide-react';
+import { ArrowLeft, Download, Send, CheckCircle, Printer, CreditCard, X, RotateCcw } from 'lucide-react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
+import jsPDF from 'jspdf';
 import { useAppStore } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
-import { facturesApi } from '@/lib/api';
+import { facturesApi, parametresApi, USE_API } from '@/lib/api';
 import { formatPrice, formatDate, statutColor, statutLabel } from '@/lib/format';
 import type { ModePaiement } from '@/types';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import RetourModal from '@/components/pos/RetourModal';
+
 
 const MODES_PAIEMENT: { value: ModePaiement; label: string }[] = [
   { value: 'especes',      label: 'Espèces' },
@@ -17,6 +21,15 @@ const MODES_PAIEMENT: { value: ModePaiement; label: string }[] = [
   { value: 'carte',        label: 'Carte bancaire' },
   { value: 'autre',        label: 'Autre' },
 ];
+
+const DEFAULT_CONFIG = {
+  nom: 'Kiosq Commercial',
+  adresse: 'Dakar, Sénégal',
+  telephone: '+221 33 800 00 00',
+  email: 'contact@kiosq.com',
+  piedDePage: 'Merci pour votre confiance',
+  logoUrl: window.location.origin + '/icon.png',
+};
 
 export default function FactureDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -33,6 +46,30 @@ export default function FactureDetailPage() {
   const [payRef, setPayRef] = useState('');
   const [payLoading, setPayLoading] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [cfg, setCfg] = useState(DEFAULT_CONFIG);
+  const printRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (USE_API) {
+      parametresApi.get()
+        .then(data => setCfg({
+          nom:        data.nom        ?? DEFAULT_CONFIG.nom,
+          adresse:    data.adresse    ?? DEFAULT_CONFIG.adresse,
+          telephone:  data.telephone  ?? DEFAULT_CONFIG.telephone,
+          email:      data.email      ?? DEFAULT_CONFIG.email,
+          piedDePage: data.piedDePage ?? DEFAULT_CONFIG.piedDePage,
+          logoUrl:    data.logoUrl    ?? '',
+        }))
+        .catch(() => {});
+    } else {
+      try {
+        const stored = localStorage.getItem('kiosq_config');
+        if (stored) setCfg(prev => ({ ...prev, ...JSON.parse(stored) }));
+        // logoUrl also stored in kiosq_config by ConfigurationPage
+      } catch { }
+    }
+  }, []);
 
   if (!facture) return (
     <div className="flex flex-col items-center justify-center h-64 gap-3">
@@ -45,15 +82,15 @@ export default function FactureDetailPage() {
     if (!confirm('Marquer cette facture comme entièrement payée ?')) return;
     setStatusLoading(true);
     try {
-      const updated = await facturesApi.update(facture.id, { statut: 'payee' }).catch(() => null);
-      if (updated) {
+      if (USE_API) {
+        const updated = await facturesApi.update(facture.id, { statut: 'payee' });
         updateFacture(facture.id, updated);
       } else {
         updateFacture(facture.id, { statut: 'payee', montantPaye: facture.totalTTC, resteAPayer: 0 });
       }
       toast.success('Facture marquée comme payée');
-    } catch {
-      toast.error('Erreur lors de la mise à jour');
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors de la mise à jour');
     } finally {
       setStatusLoading(false);
     }
@@ -62,15 +99,15 @@ export default function FactureDetailPage() {
   const handleMarkSent = async () => {
     setStatusLoading(true);
     try {
-      const updated = await facturesApi.update(facture.id, { statut: 'envoyee' }).catch(() => null);
-      if (updated) {
+      if (USE_API) {
+        const updated = await facturesApi.update(facture.id, { statut: 'envoyee' });
         updateFacture(facture.id, updated);
       } else {
         updateFacture(facture.id, { statut: 'envoyee' });
       }
       toast.success('Facture marquée comme envoyée');
-    } catch {
-      toast.error('Erreur lors de la mise à jour');
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors de la mise à jour');
     } finally {
       setStatusLoading(false);
     }
@@ -97,8 +134,8 @@ export default function FactureDetailPage() {
         reference: payRef || undefined,
       };
 
-      const updated = await facturesApi.addPaiement(facture.id, paiement as any).catch(() => null);
-      if (updated) {
+      if (USE_API) {
+        const updated = await facturesApi.addPaiement(facture.id, paiement as any);
         updateFacture(facture.id, updated);
       } else {
         // Local fallback
@@ -120,11 +157,180 @@ export default function FactureDetailPage() {
       }
       toast.success('Paiement enregistré');
       setShowPayModal(false);
-    } catch {
-      toast.error('Erreur lors de l\'enregistrement');
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors de l\'enregistrement');
     } finally {
       setPayLoading(false);
     }
+  };
+
+  // ── PDF & Impression ───────────────────────────────────
+  const pdfPrice = (n: number) =>
+    formatPrice(n).replace(/[\u00a0\u202f\u2009\u2007\u2008]/g, ' ');
+
+  const handlePrint = () => {
+    const content = printRef.current;
+    if (!content) return;
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Facture ${facture?.numero ?? ''}</title>
+          <style>
+            body { margin: 20px; font-family: Arial, sans-serif; font-size: 12px; color: #111; }
+            table { width: 100%; border-collapse: collapse; }
+            th { text-align: left; border-bottom: 2px solid #e5e7eb; padding: 6px 4px; }
+            td { padding: 6px 4px; border-bottom: 1px solid #f3f4f6; }
+            .total-section { max-width: 280px; margin-left: auto; }
+            .total-row { display: flex; justify-content: space-between; padding: 4px 0; }
+            .grand-total { font-weight: bold; font-size: 14px; border-top: 2px solid #d4a017; padding-top: 6px; }
+          </style>
+        </head>
+        <body>${content.innerHTML}</body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  };
+
+  const addLogoToPdf = (doc: jsPDF, logoUrl: string, x: number, y: number, maxW: number, maxH: number): Promise<number> => {
+    return new Promise(resolve => {
+      if (!logoUrl) { resolve(0); return; }
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) { resolve(0); return; }
+          ctx.drawImage(img, 0, 0);
+          const dataUrl = canvas.toDataURL('image/png');
+          const ratio = img.naturalWidth / img.naturalHeight;
+          let w = maxW, h = maxW / ratio;
+          if (h > maxH) { h = maxH; w = maxH * ratio; }
+          doc.addImage(dataUrl, 'PNG', x, y, w, h);
+          resolve(h);
+        } catch { resolve(0); }
+      };
+      img.onerror = () => resolve(0);
+      img.src = logoUrl;
+    });
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!facture) return;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    const margin = 15;
+    const pageWidth = 210;
+    const startY = 15;
+
+    // ── Colonne gauche : Logo + coordonnées entreprise ──────────
+    let leftY = startY;
+    const logoH = await addLogoToPdf(doc, cfg.logoUrl, margin, leftY, 32, 20);
+    if (logoH > 0) leftY += logoH + 3;
+
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text(cfg.nom.toUpperCase(), margin, leftY); leftY += 5;
+
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    if (cfg.email)    { doc.text(cfg.email,    margin, leftY); leftY += 4; }
+    if (cfg.telephone){ doc.text(cfg.telephone, margin, leftY); leftY += 4; }
+    if (cfg.adresse)  { doc.text(cfg.adresse,   margin, leftY); leftY += 4; }
+
+    // ── Colonne droite : FACTURE + numéro + statut ───────────────
+    doc.setFontSize(26);
+    doc.setFont('helvetica', 'bold');
+    doc.text('FACTURE', pageWidth - margin, startY + 10, { align: 'right' });
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text(facture.numero, pageWidth - margin, startY + 18, { align: 'right' });
+
+    const statutTxt = statutLabel(facture.statut).toUpperCase();
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(statutTxt, pageWidth - margin, startY + 24, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
+
+    // ── Séparateur ───────────────────────────────────────────────
+    let y = Math.max(leftY, startY + 30) + 4;
+    doc.setLineWidth(0.4);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 8;
+
+    // Client + dates
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Facturer à :', margin, y);
+    doc.text('Dates :', 130, y);
+    y += 4;
+    doc.setFont('helvetica', 'normal');
+    doc.text(facture.clientNom, margin, y);
+    doc.text(`Date :      ${formatDate(facture.dateFacture)}`, 130, y); y += 4;
+    if (facture.clientEmail)   { doc.text(facture.clientEmail, margin, y); }
+    doc.text(`Échéance : ${formatDate(facture.dateEcheance)}`, 130, y); y += 4;
+    if (facture.clientAdresse) { doc.text(facture.clientAdresse, margin, y); y += 4; }
+    y += 8;
+
+    // Tableau lignes
+    doc.setFillColor(245, 245, 245);
+    doc.rect(margin, y - 4, pageWidth - margin * 2, 7, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.text('Désignation',          margin + 1, y);
+    doc.text('Qté',    130,           y, { align: 'right' });
+    doc.text('P.U.',   155,           y, { align: 'right' });
+    doc.text('Remise', 173,           y, { align: 'right' });
+    doc.text('Total',  pageWidth - margin, y, { align: 'right' });
+    y += 6;
+    doc.setFont('helvetica', 'normal');
+
+    for (const ligne of facture.lignes) {
+      const name = doc.splitTextToSize(ligne.designation, 100);
+      doc.text(name,                           margin + 1, y);
+      doc.text(`${ligne.quantite}`,             130,        y, { align: 'right' });
+      doc.text(pdfPrice(ligne.prixUnitaire),    155,        y, { align: 'right' });
+      doc.text(ligne.remise > 0 ? `${ligne.remise}%` : '-', 173, y, { align: 'right' });
+      doc.text(pdfPrice(ligne.total),           pageWidth - margin, y, { align: 'right' });
+      y += name.length > 1 ? name.length * 4 : 5;
+    }
+
+    // Totaux
+    y += 3;
+    doc.line(margin, y, pageWidth - margin, y); y += 5;
+    const colLabel = 150;
+    const colVal   = pageWidth - margin;
+    const addRow = (label: string, val: string, bold = false) => {
+      if (bold) doc.setFont('helvetica', 'bold'); else doc.setFont('helvetica', 'normal');
+      doc.text(label, colLabel, y, { align: 'right' });
+      doc.text(val,   colVal,   y, { align: 'right' });
+      y += 5;
+    };
+    addRow('Total HT :', pdfPrice(facture.totalHT));
+    if (facture.remiseGlobale > 0)
+      addRow(`Remise (${facture.remiseGlobale}%) :`, `- ${pdfPrice(facture.totalHT * facture.remiseGlobale / 100)}`);
+    if (facture.tva > 0)
+      addRow(`TVA (${facture.tva}%) :`, pdfPrice(facture.totalTTC - facture.totalHT));
+    addRow('TOTAL TTC :', pdfPrice(facture.totalTTC), true);
+    if (facture.montantPaye > 0) addRow('Payé :',        `- ${pdfPrice(facture.montantPaye)}`);
+    if (facture.resteAPayer > 0) addRow('Reste à payer :', pdfPrice(facture.resteAPayer), true);
+
+    // Pied de page
+    if (cfg.piedDePage) {
+      y += 10;
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'italic');
+      doc.text(cfg.piedDePage, pageWidth / 2, y, { align: 'center' });
+    }
+
+    doc.save(`facture-${facture.numero}.pdf`);
   };
 
   return (
@@ -141,8 +347,8 @@ export default function FactureDetailPage() {
         </div>
         {canEdit && (
           <div className="flex gap-2 flex-wrap">
-            <button className="btn-secondary" title="Imprimer"><Printer size={14} /> Imprimer</button>
-            <button className="btn-secondary" title="Télécharger PDF"><Download size={14} /> PDF</button>
+            <button className="btn-secondary" title="Imprimer" onClick={handlePrint}><Printer size={14} /> Imprimer</button>
+            <button className="btn-secondary" title="Télécharger PDF" onClick={handleDownloadPDF}><Download size={14} /> PDF</button>
             {facture.statut === 'brouillon' && (
               <button className="btn-secondary" onClick={handleMarkSent} disabled={statusLoading}>
                 <Send size={14} /> {statusLoading ? '…' : 'Marquer envoyée'}
@@ -158,18 +364,27 @@ export default function FactureDetailPage() {
                 <CheckCircle size={14} /> {statusLoading ? '…' : 'Marquer payée'}
               </button>
             )}
+            {(user?.role === 'admin' || user?.role === 'gestionnaire') && facture.statut !== 'annulee' && facture.statut !== 'brouillon' && (
+              <button className="btn-secondary" style={{ color: '#d97706', borderColor: '#fcd34d' }} onClick={() => setShowReturnModal(true)}>
+                <RotateCcw size={14} /> Retour client
+              </button>
+            )}
           </div>
         )}
       </div>
 
-      {/* Facture preview */}
-      <div className="card p-8 shadow-md">
+      {/* Facture preview — zone imprimable */}
+      <div className="card p-8 shadow-md" ref={printRef}>
         {/* Header */}
         <div className="flex justify-between items-start mb-8">
           <div>
-            <p className="text-xs font-mono uppercase tracking-widest mb-1" style={{ color: 'var(--color-gold)' }}>Kiosq Commercial</p>
-            <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>contact@kiosq.com</p>
-            <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>+221 33 800 00 00</p>
+            {cfg.logoUrl
+              ? <img src={cfg.logoUrl} alt="Logo" className="h-12 object-contain mb-2" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+              : <p className="text-xs font-mono uppercase tracking-widest mb-1" style={{ color: 'var(--color-gold)' }}>{cfg.nom}</p>
+            }
+            {cfg.email     && <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>{cfg.email}</p>}
+            {cfg.telephone && <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>{cfg.telephone}</p>}
+            {cfg.adresse   && <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>{cfg.adresse}</p>}
           </div>
           <div className="text-right">
             <p className="text-3xl font-bold" style={{ color: 'var(--color-gold)', fontFamily: 'var(--font-display)' }}>FACTURE</p>
@@ -323,9 +538,14 @@ export default function FactureDetailPage() {
               </div>
               <div>
                 <label className="label">Mode de paiement *</label>
-                <select required className="input" value={payMode} onChange={e => setPayMode(e.target.value as ModePaiement)}>
-                  {MODES_PAIEMENT.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                </select>
+                <SearchableSelect
+                  required
+                  options={MODES_PAIEMENT.map(m => ({ value: m.value, label: m.label }))}
+                  value={payMode}
+                  onChange={(val: string) => setPayMode(val as ModePaiement)}
+                  emptyLabel="Sélectionner…"
+                  placeholder="Rechercher un mode…"
+                />
               </div>
               <div>
                 <label className="label">Référence (optionnel)</label>
@@ -341,6 +561,14 @@ export default function FactureDetailPage() {
             </form>
           </div>
         </div>
+      )}
+      {/* Retour Client Modal */}
+      {showReturnModal && (
+        <RetourModal
+          facture={facture}
+          onClose={() => setShowReturnModal(false)}
+          onSuccess={() => {}}
+        />
       )}
     </div>
   );

@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { getDb } from '../../db/client';
-import { users } from '../../db/schema';
-import { requireAuth, handleOptions } from '../_lib/auth';
-import { ok, err } from '../_lib/response';
+import { getDb } from '../../db/client.js';
+import { users } from '../../db/schema.js';
+import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { ok, err, parseBody} from '../_lib/response.js';
 
 const PatchSchema = z.object({
   nom:       z.string().min(1).optional(),
@@ -15,6 +15,7 @@ const PatchSchema = z.object({
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const body = await parseBody(req);
   if (handleOptions(req, res)) return;
   const ctx = await requireAuth(req, res);
   if (!ctx) return;
@@ -25,7 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── PATCH /api/utilisateurs/:id ───────────────────────
   if (req.method === 'PATCH') {
-    const parsed = PatchSchema.safeParse(req.body);
+    const parsed = PatchSchema.safeParse(body);
     if (!parsed.success) return err(res, 'Données invalides', 422);
     try {
       const [row] = await db.update(users)

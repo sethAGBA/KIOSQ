@@ -4,7 +4,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAppStore } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
-import { produitsApi } from '@/lib/api';
+import { produitsApi, USE_API } from '@/lib/api';
 import { formatPrice, formatDate } from '@/lib/format';
 
 export default function ProduitDetailPage() {
@@ -38,16 +38,16 @@ export default function ProduitDetailPage() {
     const newStock = Math.max(0, produit.stockActuel + adjustQty);
     setAdjustLoading(true);
     try {
-      const updated = await produitsApi.update(produit.id, { stockActuel: newStock }).catch(() => null);
-      if (updated) {
+      if (USE_API) {
+        const updated = await produitsApi.update(produit.id, { stockActuel: newStock });
         updateProduit(produit.id, updated);
       } else {
         updateProduit(produit.id, { stockActuel: newStock, updatedAt: new Date() });
       }
       toast.success(`Stock ajusté : ${newStock} ${produit.unite}(s)`);
       setAdjustQty(0);
-    } catch {
-      toast.error('Erreur lors de l\'ajustement');
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors de l\'ajustement');
     } finally {
       setAdjustLoading(false);
     }

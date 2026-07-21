@@ -2,30 +2,35 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { eq, ilike, or, desc, lte } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
-import { getDb } from '../../db/client';
-import { produits, categories, fournisseurs } from '../../db/schema';
-import { requireAuth, handleOptions } from '../_lib/auth';
-import { ok, err, numericRows, numericRow } from '../_lib/response';
+import { getDb } from '../../db/client.js';
+import { produits, categories, fournisseurs } from '../../db/schema.js';
+import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { ok, err, numericRows, numericRow, parseBody} from '../_lib/response.js';
+
+const emptyToUndefined = z.string().optional().transform(v => v === '' ? undefined : v);
 
 const ProduitSchema = z.object({
   reference:     z.string().min(1),
   designation:   z.string().min(1),
-  description:   z.string().optional(),
-  categorieId:   z.string().optional(),
-  fournisseurId: z.string().optional(),
+  description:   emptyToUndefined,
+  categorieId:   emptyToUndefined,
+  fournisseurId: emptyToUndefined,
   unite:         z.string().default('pièce'),
-  marque:        z.string().optional(),
-  prixAchat:     z.number().min(0),
-  prixVente:     z.number().min(0),
-  prixVenteGros: z.number().optional(),
+  marque:        emptyToUndefined,
+  prixAchat:     z.number().min(0).default(0),
+  prixVente:     z.number().min(0).default(0),
+  prixVenteGros: z.number().min(0).optional(),
   stockActuel:   z.number().int().min(0).default(0),
   stockMinimum:  z.number().int().min(0).default(0),
-  stockMaximum:  z.number().int().optional(),
+  stockMaximum:  z.number().int().min(0).optional(),
+  datePeremption:z.string().optional(),
   emplacement:   z.string().optional(),
   codeBarres:    z.string().optional(),
+  magasinId:     z.string().optional(),
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const body = await parseBody(req);
   if (handleOptions(req, res)) return;
   const ctx = await requireAuth(req, res);
   if (!ctx) return;
@@ -55,8 +60,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           stockActuel:   produits.stockActuel,
           stockMinimum:  produits.stockMinimum,
           stockMaximum:  produits.stockMaximum,
+          datePeremption:produits.datePeremption,
           emplacement:   produits.emplacement,
           codeBarres:    produits.codeBarres,
+          magasinId:     produits.magasinId,
           actif:         produits.actif,
           createdAt:     produits.createdAt,
           updatedAt:     produits.updatedAt,
@@ -83,7 +90,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'POST') {
     if (!['admin', 'gestionnaire'].includes(ctx.role)) return err(res, 'Accès refusé', 403);
-    const parsed = ProduitSchema.safeParse(req.body);
+    const parsed = ProduitSchema.safeParse(body);
     if (!parsed.success) return err(res, 'Données invalides', 422);
     try {
       const [row] = await db.insert(produits).values({
@@ -92,6 +99,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         prixAchat:     String(parsed.data.prixAchat),
         prixVente:     String(parsed.data.prixVente),
         prixVenteGros: parsed.data.prixVenteGros != null ? String(parsed.data.prixVenteGros) : undefined,
+        datePeremption:parsed.data.datePeremption ? new Date(parsed.data.datePeremption) : null,
       }).returning();
       return ok(res, numericRow(row), 201);
     } catch (e) {

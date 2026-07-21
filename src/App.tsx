@@ -21,6 +21,7 @@ import CommandeFournisseurDetailPage from '@/pages/fournisseurs/CommandeFourniss
 import RapportsPage from '@/pages/rapports/RapportsPage';
 import UtilisateursPage from '@/pages/utilisateurs/UtilisateursPage';
 import ConfigurationPage from '@/pages/configuration/ConfigurationPage';
+import EtiquettesPage from '@/pages/produits/EtiquettesPage';
 import POSPage from '@/pages/pos/POSPage';
 import HistoriqueVentesPage from '@/pages/pos/HistoriqueVentesPage';
 
@@ -54,6 +55,7 @@ export default function App() {
 
           {/* Produits */}
           <Route path="/produits" element={<ProduitsPage />} />
+          <Route path="/produits/etiquettes" element={<EtiquettesPage />} />
           <Route path="/produits/:id" element={<ProduitDetailPage />} />
 
           {/* Commandes & Devis */}

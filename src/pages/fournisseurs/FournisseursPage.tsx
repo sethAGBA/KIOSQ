@@ -5,9 +5,12 @@ import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { useAppStore } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
-import { fournisseursApi } from '@/lib/api';
+import { fournisseursApi, USE_API } from '@/lib/api';
 import { formatPrice, formatDate, statutColor, statutLabel } from '@/lib/format';
 import type { Fournisseur } from '@/types';
+import { useTableControls } from '@/hooks/useTableControls';
+import { SortableHeader } from '@/components/ui/SortableHeader';
+import { Pagination } from '@/components/ui/Pagination';
 
 const EMPTY_FORM = {
   nom: '',
@@ -67,6 +70,9 @@ export default function FournisseursPage() {
       c.numero.toLowerCase().includes(search.toLowerCase())
     ), [commandesFournisseurs, search]);
 
+  const tableF  = useTableControls(filteredF,  { defaultSort: 'nom',          defaultDirection: 'asc'  });
+  const tableCF = useTableControls(filteredCF, { defaultSort: 'dateCommande', defaultDirection: 'desc' });
+
   const totalDettes = fournisseurs.reduce((s, f) => s + f.soldeDette, 0);
   const totalAchats = fournisseurs.reduce((s, f) => s + f.totalAchats, 0);
   const cmdEnCours = commandesFournisseurs.filter(c => ['commandee', 'recu_partiel'].includes(c.statut)).length;
@@ -99,16 +105,16 @@ export default function FournisseursPage() {
     setLoading(true);
     try {
       if (editing) {
-        const updated = await fournisseursApi.update(editing.id, form).catch(() => null);
-        if (updated) {
+        if (USE_API) {
+          const updated = await fournisseursApi.update(editing.id, form);
           updateFournisseur(editing.id, updated);
         } else {
           updateFournisseur(editing.id, { ...form, updatedAt: new Date() });
         }
         toast.success('Fournisseur modifié');
       } else {
-        const created = await fournisseursApi.create(form).catch(() => null);
-        if (created) {
+        if (USE_API) {
+          const created = await fournisseursApi.create(form);
           addFournisseur(created);
         } else {
           addFournisseur({
@@ -124,8 +130,8 @@ export default function FournisseursPage() {
         toast.success('Fournisseur créé');
       }
       setShowModal(false);
-    } catch {
-      toast.error('Une erreur est survenue');
+    } catch (err: any) {
+      toast.error(err.message || 'Une erreur est survenue');
     } finally {
       setLoading(false);
     }
@@ -193,12 +199,19 @@ export default function FournisseursPage() {
         <div className="card p-0 overflow-hidden">
           <table className="table-auto w-full">
             <thead>
-              <tr><th>Fournisseur</th><th>Contact</th><th>Délai livraison</th><th>Total achats</th><th>Dette</th><th></th></tr>
+              <tr>
+                <SortableHeader column="nom" label="Fournisseur" sort={tableF.sort} onSort={tableF.setSort} />
+                <SortableHeader column="email" label="Contact" sort={tableF.sort} onSort={tableF.setSort} />
+                <SortableHeader column="delaiLivraison" label="Délai livraison" sort={tableF.sort} onSort={tableF.setSort} align="right" />
+                <SortableHeader column="totalAchats" label="Total achats" sort={tableF.sort} onSort={tableF.setSort} align="right" />
+                <SortableHeader column="soldeDette" label="Dette" sort={tableF.sort} onSort={tableF.setSort} align="right" />
+                <th></th>
+              </tr>
             </thead>
             <tbody>
-              {filteredF.length === 0 ? (
+              {tableF.paginatedData.length === 0 ? (
                 <tr><td colSpan={6} className="text-center py-10" style={{ color: 'var(--color-ink-muted)' }}>Aucun fournisseur</td></tr>
-              ) : filteredF.map(f => (
+              ) : tableF.paginatedData.map(f => (
                 <tr key={f.id} className="cursor-pointer" onClick={() => navigate(`/fournisseurs/${f.id}`)}>
                   <td>
                     <div className="flex items-center gap-3">
@@ -243,17 +256,34 @@ export default function FournisseursPage() {
               ))}
             </tbody>
           </table>
+          <Pagination
+            page={tableF.page}
+            totalPages={tableF.totalPages}
+            totalItems={tableF.totalItems}
+            pageSize={tableF.pageSize}
+            onPageChange={tableF.setPage}
+            onPageSizeChange={tableF.setPageSize}
+          />
         </div>
       ) : (
         <div className="card p-0 overflow-hidden">
           <table className="table-auto w-full">
             <thead>
-              <tr><th>Numéro</th><th>Fournisseur</th><th>Total TTC</th><th>Payé</th><th>Reste</th><th>Statut</th><th>Date</th><th></th></tr>
+              <tr>
+                <SortableHeader column="numero" label="Numéro" sort={tableCF.sort} onSort={tableCF.setSort} />
+                <SortableHeader column="fournisseurNom" label="Fournisseur" sort={tableCF.sort} onSort={tableCF.setSort} />
+                <SortableHeader column="totalTTC" label="Total TTC" sort={tableCF.sort} onSort={tableCF.setSort} align="right" />
+                <SortableHeader column="montantPaye" label="Payé" sort={tableCF.sort} onSort={tableCF.setSort} align="right" />
+                <SortableHeader column="resteAPayer" label="Reste" sort={tableCF.sort} onSort={tableCF.setSort} align="right" />
+                <SortableHeader column="statut" label="Statut" sort={tableCF.sort} onSort={tableCF.setSort} />
+                <SortableHeader column="dateCommande" label="Date" sort={tableCF.sort} onSort={tableCF.setSort} />
+                <th></th>
+              </tr>
             </thead>
             <tbody>
-              {filteredCF.length === 0 ? (
+              {tableCF.paginatedData.length === 0 ? (
                 <tr><td colSpan={8} className="text-center py-10" style={{ color: 'var(--color-ink-muted)' }}>Aucune commande</td></tr>
-              ) : filteredCF.map(c => (
+              ) : tableCF.paginatedData.map(c => (
                 <tr key={c.id} className="cursor-pointer" onClick={() => navigate(`/fournisseurs/commande/${c.id}`)}>
                   <td><span className="font-mono text-xs font-medium">{c.numero}</span></td>
                   <td style={{ color: 'var(--color-ink)' }}>{c.fournisseurNom}</td>
@@ -267,6 +297,14 @@ export default function FournisseursPage() {
               ))}
             </tbody>
           </table>
+          <Pagination
+            page={tableCF.page}
+            totalPages={tableCF.totalPages}
+            totalItems={tableCF.totalItems}
+            pageSize={tableCF.pageSize}
+            onPageChange={tableCF.setPage}
+            onPageSizeChange={tableCF.setPageSize}
+          />
         </div>
       )}
 

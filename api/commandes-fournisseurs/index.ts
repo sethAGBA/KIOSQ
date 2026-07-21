@@ -2,10 +2,10 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
-import { getDb } from '../../db/client';
-import { commandesFournisseurs, fournisseurs } from '../../db/schema';
-import { requireAuth, handleOptions } from '../_lib/auth';
-import { ok, err, numericRows, numericRow } from '../_lib/response';
+import { getDb } from '../../db/client.js';
+import { commandesFournisseurs, fournisseurs } from '../../db/schema.js';
+import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { ok, err, numericRows, numericRow, parseBody} from '../_lib/response.js';
 
 const LigneSchema = z.object({
   produitId:     z.string(),
@@ -28,6 +28,7 @@ const CFSchema = z.object({
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const body = await parseBody(req);
   if (handleOptions(req, res)) return;
   const ctx = await requireAuth(req, res);
   if (!ctx) return;
@@ -48,16 +49,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── POST /api/commandes-fournisseurs ──────────────────
   if (req.method === 'POST') {
     if (!['admin', 'gestionnaire'].includes(ctx.role)) return err(res, 'Accès refusé', 403);
-    const parsed = CFSchema.safeParse(req.body);
+    const parsed = CFSchema.safeParse(body);
     if (!parsed.success) return err(res, 'Données invalides', 422);
     try {
-      const [four] = await db.select({ nom: fournisseurs.nom })
+      const [four] = await db.select({ nom: fournisseurs.nom, soldeDette: fournisseurs.soldeDette, totalAchats: fournisseurs.totalAchats })
         .from(fournisseurs).where(eq(fournisseurs.id, parsed.data.fournisseurId)).limit(1);
       if (!four) return err(res, 'Fournisseur introuvable', 404);
 
       const all = await db.select().from(commandesFournisseurs);
       const year = new Date().getFullYear();
       const numero = `ACH-${year}-${String(all.length + 1).padStart(3, '0')}`;
+
+      // Update fournisseur balances
+      await db.update(fournisseurs)
+        .set({
+          soldeDette: String(parseFloat(four.soldeDette) + parsed.data.totalTTC),
+          totalAchats: String(parseFloat(four.totalAchats) + parsed.data.totalTTC),
+          updatedAt: new Date()
+        })
+        .where(eq(fournisseurs.id, parsed.data.fournisseurId));
 
       const [row] = await db.insert(commandesFournisseurs).values({
         id:                   nanoid(),

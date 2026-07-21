@@ -5,6 +5,9 @@
 
 const BASE = import.meta.env.VITE_API_URL ?? '';
 
+export const USE_API = Boolean(import.meta.env.VITE_API_URL) || import.meta.env.PROD;
+
+
 type ApiResponse<T> = { ok: true; data: T } | { ok: false; error: string };
 
 async function request<T>(
@@ -54,6 +57,10 @@ export const clientsApi = {
   create: (data: Partial<import('@/types').Client>) => post<import('@/types').Client>('/api/clients', data),
   update: (id: string, data: Partial<import('@/types').Client>) => patch<import('@/types').Client>(`/api/clients/${id}`, data),
   remove: (id: string) => del<{ message: string }>(`/api/clients/${id}`),
+  reglerDette: (id: string, montant: number, modePaiement: string) => 
+    post<{ success: boolean; client: import('@/types').Client; facturesUpdated: import('@/types').Facture[] }>(`/api/clients/${id}/reglement`, { montant, modePaiement }),
+  annulerDernierReglement: (id: string) =>
+    post<{ success: boolean; client: import('@/types').Client; factureUpdated?: import('@/types').Facture }>(`/api/clients/${id}/annuler-reglement`, {}),
 };
 
 // ── Produits ──────────────────────────────────────────────
@@ -113,6 +120,10 @@ export const fournisseursApi = {
   get:    (id: string) => get<import('@/types').Fournisseur>(`/api/fournisseurs/${id}`),
   create: (data: Partial<import('@/types').Fournisseur>) => post<import('@/types').Fournisseur>('/api/fournisseurs', data),
   update: (id: string, data: Partial<import('@/types').Fournisseur>) => patch<import('@/types').Fournisseur>(`/api/fournisseurs/${id}`, data),
+  reglerDette: (id: string, montant: number, modePaiement: string) => 
+    post<{ success: boolean; fournisseur: import('@/types').Fournisseur; commandesUpdated: import('@/types').CommandeFournisseur[] }>(`/api/fournisseurs/${id}/reglement`, { montant, modePaiement }),
+  annulerDernierReglement: (id: string) =>
+    post<{ success: boolean; fournisseur: import('@/types').Fournisseur; commandeUpdated?: import('@/types').CommandeFournisseur }>(`/api/fournisseurs/${id}/annuler-reglement`, {}),
 };
 
 // ── Catégories ────────────────────────────────────────────
@@ -123,6 +134,13 @@ export const categoriesApi = {
   update: (id: string, data: Partial<import('@/types').Categorie>) =>
     patch<import('@/types').Categorie>(`/api/categories/${id}`, data),
   remove: (id: string) => del<{ message: string }>(`/api/categories/${id}`),
+};
+
+// ── Magasins ──────────────────────────────────────────────
+export const magasinsApi = {
+  list:   () => get<import('@/types').Magasin[]>('/api/magasins'),
+  create: (data: { nom: string; adresse?: string; telephone?: string }) =>
+    post<import('@/types').Magasin>('/api/magasins', data),
 };
 
 // ── Commandes fournisseurs ────────────────────────────────
@@ -171,4 +189,75 @@ export const utilisateursApi = {
   update:   (id: string, data: Partial<import('@/types').AppUser>) =>
     patch<import('@/types').AppUser>(`/api/utilisateurs/${id}`, data),
   remove:   (id: string) => del<{ message: string }>(`/api/utilisateurs/${id}`),
+};
+
+// ── Dashboard ─────────────────────────────────────────────
+export interface DashboardStats {
+  caMonth: number;
+  commandesActives: number;
+  alertesStock: number;
+  facturesEnRetard: number;
+  caParMois: {
+    label: string;
+    valeur: number;
+    commandes: number;
+  }[];
+}
+
+export const dashboardApi = {
+  stats: () => get<DashboardStats>('/api/dashboard/stats'),
+};
+
+// ── Notifications ─────────────────────────────────────────
+export interface ApiNotification {
+  id: string;
+  type: string;
+  titre: string;
+  message: string;
+  lu: boolean;
+  lien: string;
+  createdAt: string;
+}
+
+export const notificationsApi = {
+  list: () => get<ApiNotification[]>('/api/notifications'),
+};
+export interface Parametres {
+  id: string;
+  nom: string;
+  adresse: string | null;
+  telephone: string | null;
+  email: string | null;
+  siteWeb: string | null;
+  siret: string | null;
+  devise: string;
+  tva: string;
+  piedDePage: string | null;
+  logoUrl: string | null;
+  updatedAt: string;
+}
+
+export const parametresApi = {
+  get:    () => get<Parametres>('/api/parametres'),
+  update: (data: Partial<Omit<Parametres, 'id' | 'updatedAt'>>) =>
+    patch<Parametres>('/api/parametres', data),
+  resetDb: () => post<{ success: boolean, message: string }>('/api/maintenance/reset', {}),
+};
+
+// ── Unités de mesure ──────────────────────────────────────
+export interface Unite {
+  id: string;
+  nom: string;
+  abreviation: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const unitesApi = {
+  list:   () => get<Unite[]>('/api/unites'),
+  create: (data: { nom: string; abreviation: string }) =>
+    post<Unite>('/api/unites', data),
+  update: (id: string, data: { nom?: string; abreviation?: string }) =>
+    patch<Unite>(`/api/unites/${id}`, data),
+  remove: (id: string) => del<{ message: string }>(`/api/unites/${id}`),
 };

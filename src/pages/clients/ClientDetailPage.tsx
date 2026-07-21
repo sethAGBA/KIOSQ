@@ -1,13 +1,14 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Mail, Phone, MapPin, Building2, User, Edit, ShoppingCart, FileText, X } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, MapPin, Building2, User, Edit, ShoppingCart, FileText, X, RotateCcw } from 'lucide-react';
 import clsx from 'clsx';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAppStore } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
-import { clientsApi } from '@/lib/api';
+import { clientsApi, USE_API } from '@/lib/api';
 import { formatPrice, formatDate, statutColor, statutLabel } from '@/lib/format';
 import type { Client } from '@/types';
+import ReglementDetteModal from '@/components/clients/ReglementDetteModal';
 
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +19,9 @@ export default function ClientDetailPage() {
   const [showEdit, setShowEdit] = useState(false);
   const [form, setForm] = useState<Partial<Client>>({});
   const [saving, setSaving] = useState(false);
+  const [showReglement, setShowReglement] = useState(false);
+  const [annulLoading, setAnnulLoading] = useState(false);
+  const { reglerDetteClient, annulerDernierReglement } = useAppStore();
 
   const canEdit = user?.role === 'admin' || user?.role === 'commercial' || user?.role === 'gestionnaire';
 
@@ -53,14 +57,41 @@ export default function ClientDetailPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const updated = await clientsApi.update(client.id, form).catch(() => null);
-      updateClient(client.id, updated ?? { ...form, updatedAt: new Date() });
+      if (USE_API) {
+        const updated = await clientsApi.update(client.id, form);
+        updateClient(client.id, updated);
+      } else {
+        updateClient(client.id, { ...form, updatedAt: new Date() });
+      }
       toast.success('Client modifié');
       setShowEdit(false);
-    } catch {
-      toast.error('Erreur lors de la sauvegarde');
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors de la sauvegarde');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleReglement = async (montant: number, modePaiement: string) => {
+    try {
+      await reglerDetteClient(client.id, montant, modePaiement);
+      toast.success('Règlement enregistré');
+      setShowReglement(false);
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors du règlement');
+    }
+  };
+
+  const handleAnnulerDernierReglement = async () => {
+    if (!window.confirm('Annuler le dernier r\u00e8glement de dette de ce client ?')) return;
+    setAnnulLoading(true);
+    try {
+      await annulerDernierReglement(client.id);
+      toast.success('Dernier r\u00e8glement annul\u00e9');
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors de l\'annulation');
+    } finally {
+      setAnnulLoading(false);
     }
   };
 
@@ -162,9 +193,30 @@ export default function ClientDetailPage() {
         </div>
         <div className="card p-4 text-center">
           <p className="label text-center">Créance</p>
-          <p className="text-xl font-bold" style={{ color: client.soldeCredit > 0 ? '#d97706' : '#16a34a' }}>
-            {formatPrice(client.soldeCredit)}
-          </p>
+          <div className="flex flex-col items-center gap-2 mt-1">
+            <p className="text-xl font-bold" style={{ color: client.soldeCredit > 0 ? '#d97706' : '#16a34a' }}>
+              {formatPrice(client.soldeCredit)}
+            </p>
+            {client.soldeCredit > 0 && canEdit && (
+              <div className="flex flex-col gap-1.5 w-full">
+                <button 
+                  onClick={() => setShowReglement(true)} 
+                  className="btn-primary text-xs py-1 px-3 w-full"
+                >
+                  Régler
+                </button>
+                <button
+                  onClick={handleAnnulerDernierReglement}
+                  disabled={annulLoading}
+                  className="text-xs py-1 px-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-1"
+                  style={{ backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}
+                >
+                  <RotateCcw size={11} />
+                  {annulLoading ? '...' : 'Annuler dernier'}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -305,6 +357,14 @@ export default function ClientDetailPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {showReglement && (
+        <ReglementDetteModal
+          client={client}
+          onClose={() => setShowReglement(false)}
+          onSubmit={handleReglement}
+        />
       )}
     </div>
   );

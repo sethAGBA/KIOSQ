@@ -1,8 +1,9 @@
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { X, Printer, FileDown } from 'lucide-react';
 import { formatPrice } from '@/lib/format';
 import type { Facture } from '@/types';
 import { useAuthStore } from '@/store/authStore';
+import { parametresApi, USE_API } from '@/lib/api';
 import jsPDF from 'jspdf';
 import { format } from 'date-fns';
 
@@ -14,6 +15,29 @@ interface ReceiptModalProps {
 export function ReceiptModal({ facture, onClose }: ReceiptModalProps) {
   const printRef = useRef<HTMLDivElement>(null);
   const { user } = useAuthStore();
+
+  const DEFAULT_CFG = { nom: 'Kiosq Commercial', adresse: 'Dakar, Sénégal', telephone: '+221 33 800 00 00', piedDePage: 'Merci de votre visite !', logoUrl: '' };
+  const [cfg, setCfg] = useState(DEFAULT_CFG);
+
+  useEffect(() => {
+    if (USE_API) {
+      parametresApi.get()
+        .then(data => setCfg({
+          nom:        data.nom        ?? DEFAULT_CFG.nom,
+          adresse:    data.adresse    ?? DEFAULT_CFG.adresse,
+          telephone:  data.telephone  ?? DEFAULT_CFG.telephone,
+          piedDePage: data.piedDePage ?? DEFAULT_CFG.piedDePage,
+          logoUrl:    data.logoUrl    ?? '',
+        }))
+        .catch(() => {});
+    } else {
+      try {
+        const stored = localStorage.getItem('kiosq_config');
+        if (stored) setCfg(prev => ({ ...prev, ...JSON.parse(stored) }));
+      } catch { }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handlePrint = () => {
     const content = printRef.current;
@@ -46,14 +70,13 @@ export function ReceiptModal({ facture, onClose }: ReceiptModalProps) {
     printWindow.close();
   };
 
-  const handleDownloadPDF = () => {
-    // Lecture de la config entreprise depuis localStorage
-    let cfg: Record<string, string> = {};
-    try { cfg = JSON.parse(localStorage.getItem('kiosq_config') || '{}'); } catch { /* ignore */ }
-    const nomEtab  = cfg.nom       || 'Kiosq Commercial';
-    const adresse  = cfg.adresse   || 'Dakar, Sénégal';
-    const tel      = cfg.telephone || '+221 33 800 00 00';
-    const piedPage = cfg.piedDePage || 'Merci de votre visite !';
+  const handleDownloadPDF = async () => {
+    // Lecture de la config entreprise
+    const nomEtab  = cfg.nom;
+    const adresse  = cfg.adresse;
+    const tel      = cfg.telephone;
+    const piedPage = cfg.piedDePage;
+    const logoUrl  = cfg.logoUrl;
 
     /**
      * Formateur sûr pour jsPDF :
@@ -74,7 +97,32 @@ export function ReceiptModal({ facture, onClose }: ReceiptModalProps) {
     const centerX = 40;
     const margin  = 5;
 
-    // ── En-tête ────────────────────────────────────────────
+    // ── Logo ou nom en-tête ───────────────────────
+    if (logoUrl) {
+      // Charge le logo via canvas pour l'intégrer dans jsPDF
+      await new Promise<void>(resolve => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+            const ctx2d = canvas.getContext('2d');
+            if (ctx2d) {
+              ctx2d.drawImage(img, 0, 0);
+              const dataUrl = canvas.toDataURL('image/png');
+              const ratio = img.naturalWidth / img.naturalHeight;
+              const logoW = 20, logoH = logoW / ratio;
+              doc.addImage(dataUrl, 'PNG', centerX - logoW / 2, y, logoW, logoH);
+              y += logoH + 2;
+            }
+          } catch { /* CORS silencié */ }
+          resolve();
+        };
+        img.onerror = () => resolve();
+        img.src = logoUrl;
+      });
+    }
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
     doc.text(nomEtab.toUpperCase(), centerX, y, { align: 'center' });
@@ -218,9 +266,13 @@ export function ReceiptModal({ facture, onClose }: ReceiptModalProps) {
             <div ref={printRef} className="text-black font-mono text-[10px] leading-tight">
               {/* Header */}
               <div className="text-center mb-3">
-                <p className="text-sm font-bold uppercase tracking-wider">Kiosq Commercial</p>
-                <p>Dakar, Sénégal</p>
-                <p>Tél : +221 33 800 00 00</p>
+                {cfg.logoUrl
+                  ? <img src={cfg.logoUrl} alt="Logo" className="mx-auto mb-1" style={{ maxHeight: 32, objectFit: 'contain' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  : <p className="text-sm font-bold uppercase tracking-wider">{cfg.nom}</p>
+                }
+                {cfg.logoUrl && <p className="text-xs font-bold uppercase">{cfg.nom}</p>}
+                {cfg.adresse   && <p>{cfg.adresse}</p>}
+                {cfg.telephone && <p>Tél : {cfg.telephone}</p>}
               </div>
               <div className="divider" />
 
@@ -320,7 +372,7 @@ export function ReceiptModal({ facture, onClose }: ReceiptModalProps) {
               {/* Footer */}
               <div className="divider" />
               <div className="text-center space-y-1 mt-2">
-                <p className="italic">Merci de votre visite !</p>
+                <p className="italic">{cfg.piedDePage}</p>
                 <p className="text-[8px] mt-2">Logiciel : Kiosq — Gestion commerciale</p>
               </div>
             </div>

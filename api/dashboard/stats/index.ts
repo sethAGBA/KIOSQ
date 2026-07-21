@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { eq, inArray, lte, gte, and, sql } from 'drizzle-orm';
-import { getDb } from '../../../db/client';
-import { factures, commandes, produits } from '../../../db/schema';
-import { requireAuth, handleOptions } from '../../_lib/auth';
-import { ok, err } from '../../_lib/response';
+import { getDb } from '../../../db/client.js';
+import { factures, commandes, produits } from '../../../db/schema.js';
+import { requireAuth, handleOptions } from '../../_lib/auth.js';
+import { ok, err } from '../../_lib/response.js';
 
 // ── Types ─────────────────────────────────────────────────
 
@@ -36,6 +36,11 @@ export function buildCaParMois(
   rows: { totalTTC: string | number; dateFacture: Date | string | null }[],
   now: Date = new Date(),
 ): MonthEntry[] {
+  // Fallback to current date if now is invalid
+  if (!now || isNaN(now.getTime())) {
+    now = new Date();
+  }
+
   // Build a map keyed by "YYYY-MM" → { valeur, commandes }
   const map = new Map<string, { valeur: number; commandes: number }>();
 

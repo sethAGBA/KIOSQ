@@ -3,10 +3,13 @@ import { Plus, Search, Shield, Mail, Phone, CheckCircle, XCircle, Edit, X, Refre
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { formatDate } from '@/lib/format';
-import { utilisateursApi } from '@/lib/api';
-import { mockUsers } from '@/data/mock';
+import { utilisateursApi, USE_API } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import type { AppUser, UserRole } from '@/types';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
+
 
 const ROLE_COLORS: Record<string, string> = {
   admin: 'badge-danger',
@@ -33,7 +36,6 @@ const ROLE_DESCRIPTIONS: Record<string, string> = {
 };
 
 const EMPTY_FORM = { nom: '', prenom: '', email: '', password: '', telephone: '', role: 'lecteur' as UserRole };
-const USE_API = Boolean(import.meta.env.VITE_API_URL);
 
 export default function UtilisateursPage() {
   const { user: currentUser } = useAuthStore();
@@ -49,15 +51,11 @@ export default function UtilisateursPage() {
 
   // Load users
   useEffect(() => {
-    if (USE_API) {
-      setLoadingData(true);
-      utilisateursApi.list()
-        .then(setUsers)
-        .catch(() => toast.error('Impossible de charger les utilisateurs'))
-        .finally(() => setLoadingData(false));
-    } else {
-      setUsers(mockUsers);
-    }
+    setLoadingData(true);
+    utilisateursApi.list()
+      .then(setUsers)
+      .catch(() => toast.error('Impossible de charger les utilisateurs'))
+      .finally(() => setLoadingData(false));
   }, []);
 
   const reload = () => {
@@ -70,6 +68,8 @@ export default function UtilisateursPage() {
     u.prenom.toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase())
   );
+
+  const table = useTableControls(filtered, { defaultSort: 'nom', defaultDirection: 'asc', defaultPageSize: 12 });
 
   const openCreate = () => {
     setEditing(null);
@@ -185,64 +185,75 @@ export default function UtilisateursPage() {
       {loadingData ? (
         <div className="text-center py-20" style={{ color: 'var(--color-ink-muted)' }}>Chargement…</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filtered.length === 0 ? (
-            <div className="col-span-2 text-center py-20" style={{ color: 'var(--color-ink-muted)' }}>Aucun utilisateur trouvé</div>
-          ) : filtered.map(u => (
-            <div key={u.id} className="card p-5 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold"
-                    style={{ backgroundColor: 'var(--color-gold-pale)', color: 'var(--color-gold)' }}
-                  >
-                    {u.prenom[0]}{u.nom[0]}
-                  </div>
-                  <div>
-                    <p className="font-semibold text-sm" style={{ color: 'var(--color-ink)' }}>{u.prenom} {u.nom}</p>
-                    <span className={clsx('badge text-xs', ROLE_COLORS[u.role])}>{ROLE_LABELS[u.role]}</span>
-                  </div>
-                </div>
-                <span className="flex items-center gap-1 text-xs">
-                  {u.actif
-                    ? <><CheckCircle size={13} className="text-green-500" /><span className="text-green-600">Actif</span></>
-                    : <><XCircle size={13} className="text-red-500" /><span className="text-red-600">Inactif</span></>
-                  }
-                </span>
-              </div>
-              <div className="space-y-1.5">
-                <p className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-                  <Mail size={12} /> {u.email}
-                </p>
-                {u.telephone && (
-                  <p className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-                    <Phone size={12} /> {u.telephone}
-                  </p>
-                )}
-                <p className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-                  <Shield size={12} /> Créé le {formatDate(u.createdAt)}
-                </p>
-              </div>
-              {isAdmin && (
-                <div className="flex gap-2 mt-4 pt-4" style={{ borderTop: '1px solid var(--color-cream-dark)' }}>
-                  <button className="btn-secondary text-xs py-1.5" onClick={() => openEdit(u)}>
-                    <Edit size={12} /> Modifier
-                  </button>
-                  {u.id !== currentUser?.id && (
-                    <button
-                      onClick={() => handleToggleActive(u)}
-                      className={clsx('text-xs py-1.5 px-3 rounded-lg font-medium border transition-colors', u.actif
-                        ? 'border-red-200 text-red-600 hover:bg-red-50'
-                        : 'border-green-200 text-green-600 hover:bg-green-50'
-                      )}
+        <div className="card p-0 overflow-hidden">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+            {table.paginatedData.length === 0 ? (
+              <div className="col-span-2 text-center py-20" style={{ color: 'var(--color-ink-muted)' }}>Aucun utilisateur trouvé</div>
+            ) : table.paginatedData.map(u => (
+              <div key={u.id} className="card p-5 hover:shadow-md transition-shadow">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold"
+                      style={{ backgroundColor: 'var(--color-gold-pale)', color: 'var(--color-gold)' }}
                     >
-                      {u.actif ? 'Désactiver' : 'Réactiver'}
-                    </button>
-                  )}
+                      {u.prenom[0]}{u.nom[0]}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-sm" style={{ color: 'var(--color-ink)' }}>{u.prenom} {u.nom}</p>
+                      <span className={clsx('badge text-xs', ROLE_COLORS[u.role])}>{ROLE_LABELS[u.role]}</span>
+                    </div>
+                  </div>
+                  <span className="flex items-center gap-1 text-xs">
+                    {u.actif
+                      ? <><CheckCircle size={13} className="text-green-500" /><span className="text-green-600">Actif</span></>
+                      : <><XCircle size={13} className="text-red-500" /><span className="text-red-600">Inactif</span></>
+                    }
+                  </span>
                 </div>
-              )}
-            </div>
-          ))}
+                <div className="space-y-1.5">
+                  <p className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+                    <Mail size={12} /> {u.email}
+                  </p>
+                  {u.telephone && (
+                    <p className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+                      <Phone size={12} /> {u.telephone}
+                    </p>
+                  )}
+                  <p className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+                    <Shield size={12} /> Créé le {formatDate(u.createdAt)}
+                  </p>
+                </div>
+                {isAdmin && (
+                  <div className="flex gap-2 mt-4 pt-4" style={{ borderTop: '1px solid var(--color-cream-dark)' }}>
+                    <button className="btn-secondary text-xs py-1.5" onClick={() => openEdit(u)}>
+                      <Edit size={12} /> Modifier
+                    </button>
+                    {u.id !== currentUser?.id && (
+                      <button
+                        onClick={() => handleToggleActive(u)}
+                        className={clsx('text-xs py-1.5 px-3 rounded-lg font-medium border transition-colors', u.actif
+                          ? 'border-red-200 text-red-600 hover:bg-red-50'
+                          : 'border-green-200 text-green-600 hover:bg-green-50'
+                        )}
+                      >
+                        {u.actif ? 'Désactiver' : 'Réactiver'}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <Pagination
+            page={table.page}
+            totalPages={table.totalPages}
+            totalItems={table.totalItems}
+            pageSize={table.pageSize}
+            onPageChange={table.setPage}
+            onPageSizeChange={table.setPageSize}
+            pageSizeOptions={[6, 12, 24, 48]}
+          />
         </div>
       )}
 
@@ -298,16 +309,14 @@ export default function UtilisateursPage() {
               )}
               <div>
                 <label className="label">Rôle *</label>
-                <select
+                <SearchableSelect
                   required
-                  className="input"
+                  options={Object.entries(ROLE_LABELS).map(([k, v]) => ({ value: k, label: v, sub: ROLE_DESCRIPTIONS[k] }))}
                   value={form.role}
-                  onChange={e => setForm(f => ({ ...f, role: e.target.value as UserRole }))}
-                >
-                  {Object.entries(ROLE_LABELS).map(([k, v]) => (
-                    <option key={k} value={k}>{v} — {ROLE_DESCRIPTIONS[k]}</option>
-                  ))}
-                </select>
+                  onChange={val => setForm(f => ({ ...f, role: val as UserRole }))}
+                  emptyLabel="Sélectionner un rôle…"
+                  placeholder="Rechercher un rôle…"
+                />
               </div>
               <div>
                 <label className="label">Téléphone (optionnel)</label>

@@ -2,10 +2,10 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
-import { getDb } from '../../db/client';
-import { factures, produits } from '../../db/schema';
-import { requireAuth, handleOptions } from '../_lib/auth';
-import { ok, err, numericRow } from '../_lib/response';
+import { getDb } from '../../db/client.js';
+import { factures, produits } from '../../db/schema.js';
+import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { ok, err, numericRow, parseBody} from '../_lib/response.js';
 
 const PatchSchema = z.object({
   statut: z.enum(['brouillon','envoyee','payee','partielle','en_retard','annulee']).optional(),
@@ -21,6 +21,7 @@ const PaiementSchema = z.object({
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const body = await parseBody(req);
   if (handleOptions(req, res)) return;
   const ctx = await requireAuth(req, res);
   if (!ctx) return;
@@ -41,7 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return err(res, 'Accès refusé', 403);
     }
 
-    const parsed = PatchSchema.safeParse(req.body);
+    const parsed = PatchSchema.safeParse(body);
     if (!parsed.success) return err(res, 'Données invalides', 422);
 
     if (parsed.data.statut === 'annulee' && !['admin', 'gestionnaire'].includes(ctx.role)) {
@@ -91,7 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── POST /api/factures/:id/paiement via query param ───
   if (req.method === 'POST') {
-    const parsed = PaiementSchema.safeParse(req.body);
+    const parsed = PaiementSchema.safeParse(body);
     if (!parsed.success) return err(res, 'Données invalides', 422);
     try {
       const [existing] = await db.select().from(factures).where(eq(factures.id, id)).limit(1);

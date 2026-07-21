@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import toast from 'react-hot-toast';
 
@@ -35,10 +35,10 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4 shadow-lg"
+            className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4 shadow-lg overflow-hidden"
             style={{ backgroundColor: '#111' }}
           >
-            <Building2 size={28} style={{ color: 'var(--color-gold)' }} />
+            <img src="/icon.png" alt="Kiosq Logo" className="w-10 h-10 object-contain" />
           </div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
             Kiosq

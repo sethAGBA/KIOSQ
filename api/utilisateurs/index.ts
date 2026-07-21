@@ -3,10 +3,10 @@ import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import bcrypt from 'bcryptjs';
-import { getDb } from '../../db/client';
-import { users } from '../../db/schema';
-import { requireAuth, handleOptions } from '../_lib/auth';
-import { ok, err } from '../_lib/response';
+import { getDb } from '../../db/client.js';
+import { users } from '../../db/schema.js';
+import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { ok, err, parseBody} from '../_lib/response.js';
 
 const CreateSchema = z.object({
   email:     z.string().email(),
@@ -18,6 +18,7 @@ const CreateSchema = z.object({
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const body = await parseBody(req);
   if (handleOptions(req, res)) return;
   const ctx = await requireAuth(req, res);
   if (!ctx) return;
@@ -49,7 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── POST /api/utilisateurs ────────────────────────────
   if (req.method === 'POST') {
     if (ctx.role !== 'admin') return err(res, 'Accès refusé', 403);
-    const parsed = CreateSchema.safeParse(req.body);
+    const parsed = CreateSchema.safeParse(body);
     if (!parsed.success) return err(res, 'Données invalides', 422);
     try {
       const passwordHash = await bcrypt.hash(parsed.data.password, 10);

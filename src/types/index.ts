@@ -48,6 +48,15 @@ export interface Unite {
   createdAt: Date;
 }
 
+export interface Magasin {
+  id: string;
+  nom: string;
+  adresse?: string;
+  telephone?: string;
+  actif: boolean;
+  createdAt: Date;
+}
+
 // ── Fournisseur ──────────────────────────────────────────
 export interface Fournisseur {
   id: string;
@@ -85,8 +94,10 @@ export interface Produit {
   stockActuel: number;
   stockMinimum: number;
   stockMaximum?: number;
+  datePeremption?: Date;
   emplacement?: string;
   codeBarres?: string;
+  magasinId?: string;
   photoUrl?: string;
   actif: boolean;
   createdAt: Date;
@@ -258,6 +269,7 @@ export interface CommandeFournisseur {
   totalTTC: number;
   montantPaye: number;
   resteAPayer: number;
+  paiements: Paiement[];
   statutPaiement: "en_attente" | "partiel" | "paye";
   dateCommande: Date;
   dateLivraisonPrevue?: Date;

@@ -75,11 +75,11 @@ describe('computePaiement — Property 2: payment financial invariant (Req 5.3)'
         totalTTCArb, // used as montantPayeActuel (clamped to totalTTC below)
         totalTTCArb, // used as nouveauMontant (clamped below)
         (totalTTC, rawMontantPaye, rawNouveau) => {
-          // Clamp montantPayeActuel to [0, totalTTC)
-          const montantPayeActuel = Math.min(rawMontantPaye, totalTTC * 0.99);
-          const remaining = totalTTC - montantPayeActuel;
-          // Clamp nouveauMontant to (0, remaining]
-          const nouveauMontant = Math.min(Math.max(rawNouveau, 0.01), remaining);
+          // Clamp montantPayeActuel to [0, totalTTC) and round to 2 decimals
+          const montantPayeActuel = Math.round(Math.min(rawMontantPaye, totalTTC * 0.99) * 100) / 100;
+          const remaining = Math.round((totalTTC - montantPayeActuel) * 100) / 100;
+          // Clamp nouveauMontant to (0, remaining] and round to 2 decimals
+          const nouveauMontant = Math.round(Math.min(Math.max(rawNouveau, 0.01), remaining) * 100) / 100;
 
           const result = computePaiement(totalTTC, montantPayeActuel, nouveauMontant);
 
@@ -100,9 +100,9 @@ describe('computePaiement — Property 2: payment financial invariant (Req 5.3)'
       fc.property(
         totalTTCArb,
         // montantPayeActuel in [0, totalTTC]
-        fc.float({ min: 0, max: 1, noNaN: true }),
+        fc.double({ min: 0, max: 1, noNaN: true }),
         // excess is a small positive amount that causes overpayment
-        fc.float({ min: 0.01, max: 1000, noNaN: true }),
+        fc.double({ min: 0.01, max: 1000, noNaN: true }),
         (totalTTC, fraction, excess) => {
           const montantPayeActuel = totalTTC * fraction;
           const remaining = totalTTC - montantPayeActuel;
@@ -121,7 +121,7 @@ describe('computePaiement — Property 2: payment financial invariant (Req 5.3)'
     fc.assert(
       fc.property(
         totalTTCArb,
-        fc.float({ min: 0, max: 1, noNaN: true }),
+        fc.double({ min: 0, max: 1, noNaN: true }),
         (totalTTC, fraction) => {
           // Ensure we cover the exact full-payment case
           const montantPayeActuel = 0;

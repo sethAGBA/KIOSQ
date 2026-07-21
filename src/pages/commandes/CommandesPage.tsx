@@ -5,9 +5,14 @@ import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { useAppStore } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
-import { commandesApi } from '@/lib/api';
+import { commandesApi, USE_API } from '@/lib/api';
 import { formatPrice, formatDate, statutColor, statutLabel } from '@/lib/format';
 import type { Commande } from '@/types';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { useTableControls } from '@/hooks/useTableControls';
+import { SortableHeader } from '@/components/ui/SortableHeader';
+import { Pagination } from '@/components/ui/Pagination';
+
 
 const STATUTS_COMMANDE = ['tous', 'brouillon', 'confirme', 'en_preparation', 'expedie', 'livre', 'annule'] as const;
 const STATUTS_DEVIS    = ['tous', 'brouillon', 'envoye', 'accepte', 'refuse', 'expire'] as const;
@@ -61,6 +66,8 @@ export default function CommandesPage() {
       return matchTab && matchSearch && matchStatut;
     });
   }, [commandes, tab, search, statutFilter]);
+
+  const table = useTableControls(filtered, { defaultSort: 'createdAt', defaultDirection: 'desc' });
 
   const statuts = tab === 'commande' ? STATUTS_COMMANDE : STATUTS_DEVIS;
 
@@ -139,8 +146,8 @@ export default function CommandesPage() {
         dateValidite: formDateValidite ? new Date(formDateValidite) : undefined,
       };
 
-      const created = await commandesApi.create(payload).catch(() => null);
-      if (created) {
+      if (USE_API) {
+        const created = await commandesApi.create(payload);
         addCommande(created);
       } else {
         const client = clients.find(c => c.id === formClientId);
@@ -263,22 +270,22 @@ export default function CommandesPage() {
         <table className="table-auto w-full">
           <thead>
             <tr>
-              <th>Numéro</th>
-              <th>Client</th>
-              <th>Total HT</th>
-              <th>TVA</th>
-              <th>Total TTC</th>
-              <th>Acompte</th>
-              <th>Reste</th>
-              <th>Statut</th>
-              <th>Date</th>
+              <SortableHeader column="numero" label="Numéro" sort={table.sort} onSort={table.setSort} />
+              <SortableHeader column="clientNom" label="Client" sort={table.sort} onSort={table.setSort} />
+              <SortableHeader column="totalHT" label="Total HT" sort={table.sort} onSort={table.setSort} align="right" />
+              <SortableHeader column="tva" label="TVA" sort={table.sort} onSort={table.setSort} align="right" />
+              <SortableHeader column="totalTTC" label="Total TTC" sort={table.sort} onSort={table.setSort} align="right" />
+              <SortableHeader column="acompte" label="Acompte" sort={table.sort} onSort={table.setSort} align="right" />
+              <SortableHeader column="resteAPayer" label="Reste" sort={table.sort} onSort={table.setSort} align="right" />
+              <SortableHeader column="statut" label="Statut" sort={table.sort} onSort={table.setSort} />
+              <SortableHeader column="createdAt" label="Date" sort={table.sort} onSort={table.setSort} />
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {table.paginatedData.length === 0 ? (
               <tr><td colSpan={10} className="text-center py-10" style={{ color: 'var(--color-ink-muted)' }}>Aucun résultat</td></tr>
-            ) : filtered.map((c) => (
+            ) : table.paginatedData.map((c) => (
               <tr key={c.id} className="cursor-pointer" onClick={() => navigate(`/commandes/${c.id}`)}>
                 <td><span className="font-mono text-xs font-medium" style={{ color: 'var(--color-ink)' }}>{c.numero}</span></td>
                 <td style={{ color: 'var(--color-ink)' }}>{c.clientNom}</td>
@@ -298,6 +305,14 @@ export default function CommandesPage() {
             ))}
           </tbody>
         </table>
+        <Pagination
+          page={table.page}
+          totalPages={table.totalPages}
+          totalItems={table.totalItems}
+          pageSize={table.pageSize}
+          onPageChange={table.setPage}
+          onPageSizeChange={table.setPageSize}
+        />
       </div>
 
       {/* Modal Create */}
@@ -318,17 +333,14 @@ export default function CommandesPage() {
               {/* Client */}
               <div>
                 <label className="label">Client *</label>
-                <select
+                <SearchableSelect
                   required
-                  className="input"
+                  options={clients.filter(c => c.actif).map(c => ({ value: c.id, label: c.nom }))}
                   value={formClientId}
-                  onChange={e => setFormClientId(e.target.value)}
-                >
-                  <option value="">Sélectionner un client…</option>
-                  {clients.filter(c => c.actif).map(c => (
-                    <option key={c.id} value={c.id}>{c.nom}</option>
-                  ))}
-                </select>
+                  onChange={val => setFormClientId(val)}
+                  emptyLabel="Sélectionner un client…"
+                  placeholder="Rechercher un client…"
+                />
               </div>
 
               {/* Lignes */}
@@ -349,16 +361,14 @@ export default function CommandesPage() {
                     <div key={i} className="grid grid-cols-12 gap-2 items-end p-3 rounded-xl" style={{ backgroundColor: 'var(--color-cream)' }}>
                       <div className="col-span-5">
                         <label className="label text-[10px]">Produit</label>
-                        <select
-                          className="input text-sm"
+                        <SearchableSelect
+                          required
+                          options={produits.filter(p => p.actif).map(p => ({ value: p.id, label: p.designation, sub: p.reference }))}
                           value={l.produitId}
-                          onChange={e => selectProduit(i, e.target.value)}
-                        >
-                          <option value="">Sélectionner…</option>
-                          {produits.filter(p => p.actif).map(p => (
-                            <option key={p.id} value={p.id}>{p.designation}</option>
-                          ))}
-                        </select>
+                          onChange={val => selectProduit(i, val)}
+                          emptyLabel="Sélectionner…"
+                          placeholder="Rechercher un produit…"
+                        />
                       </div>
                       <div className="col-span-2">
                         <label className="label text-[10px]">Qté</label>

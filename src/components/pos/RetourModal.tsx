@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, RotateCcw, CheckCircle2 } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
-import { facturesApi } from '@/lib/api';
+import { facturesApi, USE_API } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { formatPrice } from '@/lib/format';
 import type { Facture } from '@/types';
@@ -69,9 +69,8 @@ export default function RetourModal({ facture, onClose, onSuccess }: Props) {
 
     setLoading(true);
     try {
-      // 1. Try real API (handles stock restore server-side)
-      try {
-        await facturesApi.retour(facture.id, {
+      if (USE_API) {
+        const updatedFacture = await facturesApi.retour(facture.id, {
           lignesRetour: itemsToReturn.map(i => ({
             designation:  i.designation,
             quantite:     i.quantite,
@@ -80,25 +79,32 @@ export default function RetourModal({ facture, onClose, onSuccess }: Props) {
           motif: motif.trim(),
           remboursementMode,
         });
-      } catch (apiErr: any) {
-        console.warn('[RetourModal] API failed, falling back to local:', apiErr?.message);
+
+        // 1. Update local store stock
+        itemsToReturn.forEach(({ product, quantite }) => {
+          if (product) {
+            updateProduit(product.id, { stockActuel: product.stockActuel + quantite });
+          }
+        });
+
+        // 2. Update invoice with database response
+        updateFacture(facture.id, updatedFacture);
+      } else {
+        // Local mode fallback
+        itemsToReturn.forEach(({ product, quantite }) => {
+          if (product) {
+            updateProduit(product.id, { stockActuel: product.stockActuel + quantite });
+          }
+        });
+
+        const returnSummary = itemsToReturn.map(i => `${i.quantite}x ${i.designation}`).join(', ');
+        const newNotes = [
+          facture.notes,
+          `[Retour Client le ${new Date().toLocaleDateString('fr-FR')}] : ${returnSummary}. Mode: ${remboursementMode}. Motif: ${motif.trim()}`
+        ].filter(Boolean).join('\n');
+
+        updateFacture(facture.id, { notes: newNotes });
       }
-
-      // 2. Update local store stock
-      itemsToReturn.forEach(({ product, quantite }) => {
-        if (product) {
-          updateProduit(product.id, { stockActuel: product.stockActuel + quantite });
-        }
-      });
-
-      // 3. Append return info to facture notes in local store
-      const returnSummary = itemsToReturn.map(i => `${i.quantite}x ${i.designation}`).join(', ');
-      const newNotes = [
-        facture.notes,
-        `[Retour Client le ${new Date().toLocaleDateString('fr-FR')}] : ${returnSummary}. Mode: ${remboursementMode}. Motif: ${motif.trim()}`
-      ].filter(Boolean).join('\n');
-
-      updateFacture(facture.id, { notes: newNotes });
 
       toast.success('Retour enregistré avec succès ! Stock mis à jour.');
       onSuccess();

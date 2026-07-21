@@ -74,6 +74,9 @@ async function main() {
   // ── POS : encaissement ───────────────────────────────────
   app.post('/api/pos/vente', adapt('./api/pos/vente.ts'));
 
+  // ── Dashboard Stats ──────────────────────────────────────
+  app.get('/api/dashboard/stats', adapt('./api/dashboard/stats/index.ts'));
+
   // ── Fournisseurs ─────────────────────────────────────────
   app.all('/api/fournisseurs/:id', async (req, res) => {
     req.query.id = req.params.id;
@@ -83,7 +86,26 @@ async function main() {
   app.all('/api/fournisseurs', adapt('./api/fournisseurs/index.ts'));
 
   // ── Catégories ───────────────────────────────────────────
+  app.all('/api/categories/:id', async (req, res) => {
+    req.query.id = req.params.id;
+    const { default: handler } = await import('./api/categories/[id].ts');
+    await handler(req as never, res as never);
+  });
   app.all('/api/categories', adapt('./api/categories/index.ts'));
+
+  // ── Notifications ────────────────────────────────────────
+  app.get('/api/notifications', adapt('./api/notifications/index.ts'));
+
+  // ── Paramètres ───────────────────────────────────────────
+  app.all('/api/parametres', adapt('./api/parametres/index.ts'));
+
+  // ── Unités ───────────────────────────────────────────────
+  app.all('/api/unites/:id', async (req, res) => {
+    req.query.id = req.params.id;
+    const { default: handler } = await import('./api/unites/[id].ts');
+    await handler(req as never, res as never);
+  });
+  app.all('/api/unites', adapt('./api/unites/index.ts'));
 
   // ── Utilisateurs ─────────────────────────────────────────
   app.all('/api/utilisateurs/:id', async (req, res) => {
@@ -104,7 +126,11 @@ async function main() {
     console.log('   GET    /api/factures');
     console.log('   PATCH  /api/factures/:id       → mise à jour / annulation');
     console.log('   POST   /api/factures/:id/retour → retour client');
-    console.log('   POST   /api/pos/vente           → encaissement POS\n');
+    console.log('   POST   /api/pos/vente           → encaissement POS');
+    console.log('   GET    /api/dashboard/stats     → statistiques dashboard');
+    console.log('   GET    /api/parametres          → paramètres entreprise');
+    console.log('   PATCH  /api/parametres          → modifier paramètres');
+    console.log('   GET    /api/unites              → unités de mesure\n');
   });
 }
 

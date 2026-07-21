@@ -14,6 +14,9 @@ import { CancellationModal } from '@/components/pos/CancellationModal';
 import RetourModal from '@/components/pos/RetourModal';
 import type { Facture } from '@/types';
 import toast from 'react-hot-toast';
+import { useTableControls } from '@/hooks/useTableControls';
+import { SortableHeader } from '@/components/ui/SortableHeader';
+import { Pagination } from '@/components/ui/Pagination';
 
 /* ── helpers ─────────────────────────────────────────────── */
 function statutLabel(s: string) {
@@ -107,9 +110,10 @@ export default function HistoriqueVentesPage() {
     // Filtre mode paiement
     if (selectedMode !== 'all') list = list.filter(f => f.paiements[0]?.mode === selectedMode);
 
-    // Tri : plus récentes en premier
-    return [...list].sort((a, b) => new Date(b.dateFacture).getTime() - new Date(a.dateFacture).getTime());
+    return list;
   }, [factures, search, dateDebut, dateFin, selectedStatut, selectedMode]);
+
+  const table = useTableControls(filtered, { defaultSort: 'dateFacture', defaultDirection: 'desc' });
 
   /* ── KPIs ─────────────────────────────────────────────── */
   const totalCA = filtered.reduce((s, f) => s + f.totalTTC, 0);
@@ -362,25 +366,25 @@ export default function HistoriqueVentesPage() {
       <div className="card p-0 overflow-hidden">
         <table className="w-full text-left bg-white">
           <thead style={{ backgroundColor: 'var(--color-cream)' }}>
-            <tr className="text-xs uppercase font-bold tracking-wider" style={{ color: 'var(--color-ink-muted)' }}>
-              <th className="p-4">Date</th>
-              <th className="p-4">Ticket</th>
-              <th className="p-4">Client</th>
-              <th className="p-4">Vendeur</th>
-              <th className="p-4 text-right">Montant</th>
-              <th className="p-4 text-center">Paiement</th>
-              <th className="p-4 text-center">Statut</th>
-              <th className="p-4 text-right">Action</th>
+            <tr>
+              <SortableHeader column="dateFacture" label="Date" sort={table.sort} onSort={table.setSort} className="p-4" />
+              <SortableHeader column="numero" label="Ticket" sort={table.sort} onSort={table.setSort} className="p-4" />
+              <SortableHeader column="clientNom" label="Client" sort={table.sort} onSort={table.setSort} className="p-4" />
+              <th className="p-4 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-ink-muted)' }}>Vendeur</th>
+              <SortableHeader column="totalTTC" label="Montant" sort={table.sort} onSort={table.setSort} align="right" className="p-4" />
+              <th className="p-4 text-xs font-semibold uppercase tracking-wider text-center" style={{ color: 'var(--color-ink-muted)' }}>Paiement</th>
+              <SortableHeader column="statut" label="Statut" sort={table.sort} onSort={table.setSort} className="p-4" />
+              <th className="p-4 text-xs font-semibold uppercase tracking-wider text-right" style={{ color: 'var(--color-ink-muted)' }}>Action</th>
             </tr>
           </thead>
           <tbody className="divide-y text-sm" style={{ borderColor: 'var(--color-cream-dark)' }}>
-            {filtered.length === 0 ? (
+            {table.paginatedData.length === 0 ? (
               <tr>
                 <td colSpan={8} className="p-10 text-center" style={{ color: 'var(--color-ink-muted)' }}>
                   Aucune vente trouvée.
                 </td>
               </tr>
-            ) : filtered.map(f => (
+            ) : table.paginatedData.map(f => (
               <tr
                 key={f.id}
                 className="transition-colors hover:bg-cream/40"
@@ -468,6 +472,14 @@ export default function HistoriqueVentesPage() {
             ))}
           </tbody>
         </table>
+        <Pagination
+          page={table.page}
+          totalPages={table.totalPages}
+          totalItems={table.totalItems}
+          pageSize={table.pageSize}
+          onPageChange={table.setPage}
+          onPageSizeChange={table.setPageSize}
+        />
       </div>
 
       {/* ── Modal ticket ───────────────────────────────────── */}

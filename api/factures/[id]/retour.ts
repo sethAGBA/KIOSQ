@@ -1,15 +1,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { getDb } from '../../../db/client';
-import { factures, produits } from '../../../db/schema';
-import { requireAuth, handleOptions } from '../../_lib/auth';
-import { ok, err, numericRow } from '../../_lib/response';
+import { getDb } from '../../../db/client.js';
+import { factures, produits } from '../../../db/schema.js';
+import { requireAuth, handleOptions } from '../../_lib/auth.js';
+import { ok, err, numericRow, parseBody} from '../../_lib/response.js';
 
 // ── Validation ────────────────────────────────────────────────────────────────
 const RetourLineSchema = z.object({
-  designation: z.string(),        // "REF — Nom du produit"
-  quantite:    z.number().int().positive(),
+  designation:  z.string(),        // "REF — Nom du produit"
+  quantite:     z.number().int().positive(),
   prixUnitaire: z.number().positive(),
 });
 
@@ -21,6 +21,7 @@ const RetourSchema = z.object({
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const body = await parseBody(req);
   if (handleOptions(req, res)) return;
 
   // Only POST allowed on this sub-route
@@ -38,7 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const db = getDb();
 
   // ── Validate payload ───────────────────────────────────────────────────────
-  const parsed = RetourSchema.safeParse(req.body);
+  const parsed = RetourSchema.safeParse(body);
   if (!parsed.success) {
     return err(res, `Données invalides : ${parsed.error.issues.map(i => i.message).join(', ')}`, 422);
   }
@@ -54,23 +55,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return err(res, 'Impossible de retourner une vente déjà annulée', 409);
     }
 
-    // ── 2. Restore stock for each returned line ───────────────────────────────
+    // ── 2. Restore stock for each returned line using SQL arithmetic ──────────
+    // Calculate total amount being returned
+    let montantRetour = 0;
+
     for (const ligne of lignesRetour) {
       const ref = ligne.designation.split(' — ')[0]?.trim();
       if (!ref) continue;
 
       const [prod] = await db.select().from(produits).where(eq(produits.reference, ref)).limit(1);
       if (prod) {
+        // Use SQL arithmetic to avoid JS type coercion issues with Postgres numeric strings
         await db.update(produits)
           .set({
-            stockActuel: prod.stockActuel + ligne.quantite,
+            stockActuel: sql`${produits.stockActuel} + ${ligne.quantite}`,
             updatedAt:   new Date(),
           })
           .where(eq(produits.id, prod.id));
       }
+
+      montantRetour += ligne.quantite * ligne.prixUnitaire;
     }
 
-    // ── 3. Append return note to the facture ──────────────────────────────────
+    // ── 3. Compute new financial values ───────────────────────────────────────
+    const ancienTotalTTC   = Number(facture.totalTTC);
+    const ancienMontantPaye = Number(facture.montantPaye);
+    const nouveauTotalTTC  = Math.max(0, ancienTotalTTC - montantRetour);
+    const nouveauMontantPaye = Math.max(0, ancienMontantPaye - montantRetour);
+    const nouveauResteAPayer = Math.max(0, nouveauTotalTTC - nouveauMontantPaye);
+    const nouveauTotalHT   = Math.max(0, Number(facture.totalHT) - montantRetour);
+
+    // Determine new status based on remaining amount
+    let nouveauStatut: 'annulee' | 'payee' | 'partielle' | 'en_retard' | 'envoyee' | 'brouillon' = facture.statut;
+    if (nouveauTotalTTC === 0) {
+      nouveauStatut = 'annulee'; // Full return = cancelled
+    } else if (nouveauResteAPayer > 0) {
+      nouveauStatut = 'partielle';
+    } else {
+      nouveauStatut = 'payee';
+    }
+
+    // ── 4. Append return note to the facture ──────────────────────────────────
     const returnSummary = lignesRetour
       .map(l => `${l.quantite}× ${l.designation}`)
       .join(', ');
@@ -80,9 +105,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const existingNotes = (facture.notes ?? '').trim();
     const updatedNotes  = existingNotes ? `${existingNotes}\n${newNote}` : newNote;
 
-    // ── 4. Update facture notes ───────────────────────────────────────────────
+    // ── 5. Update facture with new amounts and status ─────────────────────────
     const [updated] = await db.update(factures)
-      .set({ notes: updatedNotes, updatedAt: new Date() })
+      .set({
+        notes:        updatedNotes,
+        totalTTC:     String(nouveauTotalTTC),
+        totalHT:      String(nouveauTotalHT),
+        montantPaye:  String(nouveauMontantPaye),
+        resteAPayer:  String(nouveauResteAPayer),
+        statut:       nouveauStatut,
+        updatedAt:    new Date(),
+      })
       .where(eq(factures.id, id))
       .returning();
 

@@ -2,10 +2,10 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { eq, desc } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
-import { getDb } from '../../db/client';
-import { commandes, clients } from '../../db/schema';
-import { requireAuth, handleOptions } from '../_lib/auth';
-import { ok, err, numericRows, numericRow } from '../_lib/response';
+import { getDb } from '../../db/client.js';
+import { commandes, clients } from '../../db/schema.js';
+import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { ok, err, numericRows, numericRow, parseBody } from '../_lib/response.js';
 
 const LigneSchema = z.object({
   produitId:  z.string(),
@@ -34,6 +34,7 @@ const CommandeSchema = z.object({
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const body = await parseBody(req);
   if (handleOptions(req, res)) return;
   const ctx = await requireAuth(req, res);
   if (!ctx) return;
@@ -57,7 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!['admin', 'commercial', 'gestionnaire'].includes(ctx.role))
       return err(res, 'Accès refusé', 403);
 
-    const parsed = CommandeSchema.safeParse(req.body);
+    const parsed = CommandeSchema.safeParse(body);
     if (!parsed.success) return err(res, 'Données invalides', 422);
 
     try {

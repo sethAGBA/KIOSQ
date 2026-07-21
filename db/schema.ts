@@ -48,6 +48,17 @@ export const categories = pgTable('categories', {
   createdAt:   timestamp('created_at').notNull().defaultNow(),
 });
 
+// ── Magasins ──────────────────────────────────────────────
+export const magasins = pgTable('magasins', {
+  id:          text('id').primaryKey(),
+  nom:         text('nom').notNull(),
+  adresse:     text('adresse'),
+  telephone:   text('telephone'),
+  actif:       boolean('actif').notNull().default(true),
+  createdAt:   timestamp('created_at').notNull().defaultNow(),
+  updatedAt:   timestamp('updated_at').notNull().defaultNow(),
+});
+
 // ── Fournisseurs ──────────────────────────────────────────
 export const fournisseurs = pgTable('fournisseurs', {
   id:                  text('id').primaryKey(),
@@ -83,8 +94,10 @@ export const produits = pgTable('produits', {
   stockActuel:  integer('stock_actuel').notNull().default(0),
   stockMinimum: integer('stock_minimum').notNull().default(0),
   stockMaximum: integer('stock_maximum'),
+  datePeremption:timestamp('date_peremption'),
   emplacement:  text('emplacement'),
   codeBarres:   text('code_barres'),
+  magasinId:    text('magasin_id').references(() => magasins.id),
   actif:        boolean('actif').notNull().default(true),
   createdAt:    timestamp('created_at').notNull().defaultNow(),
   updatedAt:    timestamp('updated_at').notNull().defaultNow(),
@@ -180,6 +193,7 @@ export const commandesFournisseurs = pgTable('commandes_fournisseurs', {
   totalTTC:             numeric('total_ttc', { precision: 15, scale: 2 }).notNull().default('0'),
   montantPaye:          numeric('montant_paye', { precision: 15, scale: 2 }).notNull().default('0'),
   resteAPayer:          numeric('reste_a_payer', { precision: 15, scale: 2 }).notNull().default('0'),
+  paiements:            jsonb('paiements').notNull().default([]),
   statutPaiement:       text('statut_paiement').notNull().default('en_attente'),
   dateCommande:         timestamp('date_commande').notNull().defaultNow(),
   dateLivraisonPrevue:  timestamp('date_livraison_prevue'),
@@ -190,12 +204,41 @@ export const commandesFournisseurs = pgTable('commandes_fournisseurs', {
   updatedAt:            timestamp('updated_at').notNull().defaultNow(),
 });
 
+// ── Paramètres entreprise ─────────────────────────────────
+// Table clé-valeur : une seule ligne avec id = 'default'
+export const parametres = pgTable('parametres', {
+  id:          text('id').primaryKey(),           // always 'default'
+  nom:         text('nom').notNull().default('Kiosq Commercial'),
+  adresse:     text('adresse'),
+  telephone:   text('telephone'),
+  email:       text('email'),
+  siteWeb:     text('site_web'),
+  siret:       text('siret'),
+  devise:      text('devise').notNull().default('XOF'),
+  tva:         text('tva').notNull().default('18'),
+  piedDePage:  text('pied_de_page'),
+  logoUrl:     text('logo_url'),
+  updatedAt:   timestamp('updated_at').notNull().defaultNow(),
+});
+
+// ── Unités de mesure ──────────────────────────────────────
+export const unites = pgTable('unites', {
+  id:           text('id').primaryKey(),
+  nom:          text('nom').notNull(),
+  abreviation:  text('abreviation').notNull(),
+  createdAt:    timestamp('created_at').notNull().defaultNow(),
+  updatedAt:    timestamp('updated_at').notNull().defaultNow(),
+});
+
 // ── Type helpers ──────────────────────────────────────────
 export type UserRow           = typeof users.$inferSelect;
 export type CategoryRow       = typeof categories.$inferSelect;
+export type MagasinRow        = typeof magasins.$inferSelect;
 export type FournisseurRow    = typeof fournisseurs.$inferSelect;
 export type ProduitRow        = typeof produits.$inferSelect;
 export type ClientRow         = typeof clients.$inferSelect;
 export type CommandeRow       = typeof commandes.$inferSelect;
 export type FactureRow        = typeof factures.$inferSelect;
 export type CommandeCFRow     = typeof commandesFournisseurs.$inferSelect;
+export type ParametresRow     = typeof parametres.$inferSelect;
+export type UniteRow          = typeof unites.$inferSelect;

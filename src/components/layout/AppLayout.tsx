@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import {
   LayoutDashboard, Users, Package, ShoppingCart, FileText,
   Truck, BarChart3, Settings, Bell, LogOut, ChevronRight,
-  Menu, X, TrendingUp, UserCog, Building2, Store,
+  Menu, X, TrendingUp, UserCog, Store, AlertTriangle,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useAppStore, selectUnreadCount } from '@/store/appStore';
@@ -29,6 +29,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuthStore();
   const unread = useAppStore(selectUnreadCount);
   const commandes = useAppStore(s => s.commandes);
+  const error = useAppStore(s => s.error);
   const [notifOpen, setNotifOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -73,7 +74,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
               style={{ backgroundColor: 'var(--color-gold)' }}
             >
-              <Building2 size={16} className="text-white" />
+              <img src="/icon.png" alt="Kiosq Logo" className="w-6 h-6 object-contain" />
             </div>
             {sidebarOpen && (
               <div>
@@ -236,6 +237,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto p-6">
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-center gap-3 shadow-sm animate-pulse">
+              <AlertTriangle size={18} className="shrink-0 text-red-500" />
+              <div>
+                <p className="text-sm font-semibold">Problème de connexion à l'API</p>
+                <p className="text-xs text-red-600 mt-0.5">{error}</p>
+              </div>
+            </div>
+          )}
           {children}
         </main>
       </div>

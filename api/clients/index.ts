@@ -2,10 +2,10 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { eq, ilike, or, desc } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
-import { getDb } from '../../db/client';
-import { clients } from '../../db/schema';
-import { requireAuth, handleOptions } from '../_lib/auth';
-import { ok, err, numericRows, numericRow } from '../_lib/response';
+import { getDb } from '../../db/client.js';
+import { clients } from '../../db/schema.js';
+import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { ok, err, numericRows, numericRow, parseBody } from '../_lib/response.js';
 
 const ClientSchema = z.object({
   nom:             z.string().min(1),
@@ -22,6 +22,7 @@ const ClientSchema = z.object({
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const body = await parseBody(req);
   if (handleOptions(req, res)) return;
   const ctx = await requireAuth(req, res);
   if (!ctx) return;
@@ -49,7 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── POST /api/clients ─────────────────────────────────
   if (req.method === 'POST') {
-    const parsed = ClientSchema.safeParse(req.body);
+    const parsed = ClientSchema.safeParse(body);
     if (!parsed.success) return err(res, 'Données invalides', 422);
     try {
       const count = await db.select().from(clients);

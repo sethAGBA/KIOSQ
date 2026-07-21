@@ -2,10 +2,10 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
-import { getDb } from '../../db/client';
-import { commandesFournisseurs, produits } from '../../db/schema';
-import { requireAuth, handleOptions } from '../_lib/auth';
-import { ok, err, numericRow } from '../_lib/response';
+import { getDb } from '../../db/client.js';
+import { commandesFournisseurs, produits } from '../../db/schema.js';
+import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { ok, err, numericRow, parseBody} from '../_lib/response.js';
 
 const PatchSchema = z.object({
   statut:        z.enum(['brouillon', 'commandee', 'recu_partiel', 'recu', 'annulee']).optional(),
@@ -46,11 +46,15 @@ export function computePaiement(
   montantPayeActuel: number,
   nouveauMontant: number,
 ): { montantPaye: number; resteAPayer: number; statutPaiement: string } {
-  const montantPaye = montantPayeActuel + nouveauMontant;
-  if (montantPaye > totalTTC) {
+  const rawMontantPaye = montantPayeActuel + nouveauMontant;
+  const montantPaye = Math.round(rawMontantPaye * 100) / 100;
+  const roundedTotal = Math.round(totalTTC * 100) / 100;
+
+  if (montantPaye > roundedTotal) {
     throw new Error('Montant dépasse le total dû');
   }
-  const resteAPayer = Math.max(0, totalTTC - montantPaye);
+
+  const resteAPayer = Math.max(0, Math.round((roundedTotal - montantPaye) * 100) / 100);
   const statutPaiement =
     resteAPayer === 0 ? 'paye' : montantPaye > 0 ? 'partiel' : 'en_attente';
   return { montantPaye, resteAPayer, statutPaiement };
@@ -59,6 +63,7 @@ export function computePaiement(
 // ── Handler ───────────────────────────────────────────────
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const body = await parseBody(req);
   if (handleOptions(req, res)) return;
   const ctx = await requireAuth(req, res);
   if (!ctx) return;
@@ -78,7 +83,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── PATCH (statut / notes) ────────────────────────────
   if (req.method === 'PATCH') {
-    const parsed = PatchSchema.safeParse(req.body);
+    const parsed = PatchSchema.safeParse(body);
     if (!parsed.success) return err(res, 'Données invalides', 422);
     try {
       // Fetch the existing record first to check previous status and get lignes
@@ -124,7 +129,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── POST (enregistrer paiement) ───────────────────────
   if (req.method === 'POST') {
-    const parsed = PaiementSchema.safeParse(req.body);
+    const parsed = PaiementSchema.safeParse(body);
     if (!parsed.success) return err(res, 'Données invalides', 422);
     try {
       const [existing] = await db.select().from(commandesFournisseurs)
@@ -145,17 +150,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         throw e;
       }
 
+      const currentPaiements = Array.isArray(existing.paiements) ? existing.paiements as any[] : [];
+      const newPaiementRecord = {
+        id: `pay-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        montant: parsed.data.montant,
+        mode: 'autre', // CF doesn't specify mode yet, default to autre
+        date: parsed.data.date || new Date().toISOString(),
+        note: parsed.data.note,
+      };
+
       const [row] = await db.update(commandesFournisseurs)
         .set({
           montantPaye:    String(paiement.montantPaye),
           resteAPayer:    String(paiement.resteAPayer),
+          paiements:      [...currentPaiements, newPaiementRecord],
           statutPaiement: paiement.statutPaiement,
           updatedAt:      new Date(),
-        } as any)
+        })
         .where(eq(commandesFournisseurs.id, id))
         .returning();
+
+      // Decrement fournisseur soldeDette
+      await db.execute(sql`
+        UPDATE fournisseurs
+        SET solde_dette = GREATEST(0, solde_dette - ${parsed.data.montant}),
+            updated_at = NOW()
+        WHERE id = ${existing.fournisseurId}
+      `);
+
       return ok(res, numericRow(row));
-    } catch (e) { return err(res, 'Erreur serveur', 500); }
+    } catch (e) { 
+      console.error('[CF POST Paiement]', e);
+      return err(res, 'Erreur serveur', 500); 
+    }
   }
 
   return err(res, 'Méthode non autorisée', 405);
