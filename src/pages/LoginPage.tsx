@@ -17,7 +17,12 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(email, password);
-      navigate('/dashboard');
+      const currentUser = useAuthStore.getState().user;
+      if (currentUser?.role === 'superadmin') {
+        navigate('/superadmin');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Erreur de connexion');
     } finally {

@@ -242,6 +242,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Superadmin backoffice shortcut */}
+            {user?.role === 'superadmin' && (
+              <NavLink
+                to="/superadmin"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-100 text-purple-800 border border-purple-300 hover:bg-purple-200 transition-colors shadow-sm"
+                title="Accéder au backoffice Superadmin"
+              >
+                <ShieldCheck size={14} className="text-purple-600" />
+                <span>Espace Superadmin</span>
+              </NavLink>
+            )}
+
             {/* Guide d'onboarding */}
             <button
               onClick={() => setOnboardingOpen(true)}
