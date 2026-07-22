@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { getDb } from '../../db/client.js';
 import { commandesFournisseurs, fournisseurs } from '../../db/schema.js';
-import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { requireTenantAuth, handleOptions } from '../_lib/auth.js';
 import { ok, err, numericRows, numericRow, parseBody} from '../_lib/response.js';
 
 const LigneSchema = z.object({
@@ -30,7 +30,7 @@ const CFSchema = z.object({
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = await parseBody(req);
   if (handleOptions(req, res)) return;
-  const ctx = await requireAuth(req, res);
+  const ctx = await requireTenantAuth(req, res);
   if (!ctx) return;
 
   const db = getDb();
@@ -38,7 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── GET /api/commandes-fournisseurs ───────────────────
   if (req.method === 'GET') {
     try {
-      const rows = await db.select().from(commandesFournisseurs).orderBy(desc(commandesFournisseurs.createdAt));
+      const rows = await db.select().from(commandesFournisseurs).where(eq(commandesFournisseurs.tenantId, ctx.tenantId)).orderBy(desc(commandesFournisseurs.createdAt));
       return ok(res, numericRows(rows as Record<string, unknown>[]));
     } catch (e) {
       console.error('[CF GET]', e);
@@ -71,6 +71,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const [row] = await db.insert(commandesFournisseurs).values({
         id:                   nanoid(),
+        tenantId:             ctx.tenantId,
         numero,
         fournisseurId:        parsed.data.fournisseurId,
         fournisseurNom:       four.nom,

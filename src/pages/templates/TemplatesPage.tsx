@@ -1,21 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Store, Download, Upload, Filter, Sparkles, CheckCircle, Package } from 'lucide-react';
+import { Store, Download, Upload, Filter, Sparkles, Package } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { api } from '@/lib/api';
-
-interface TemplateItem {
-  id: string;
-  tenantId: string;
-  nom: string;
-  description: string | null;
-  secteurActivite: string | null;
-  payload: {
-    categories?: any[];
-    produits?: any[];
-  };
-  createdAt: string;
-}
+import { templatesApi } from '@/lib/api';
+import type { TemplateItem } from '@/lib/api';
 
 export default function TemplatesPage() {
   const [templates, setTemplates] = useState<TemplateItem[]>([]);
@@ -26,11 +14,9 @@ export default function TemplatesPage() {
   const fetchTemplates = async () => {
     setLoading(true);
     try {
-      const url = secteurFilter ? `/api/templates?secteur=${encodeURIComponent(secteurFilter)}` : '/api/templates';
-      const res = await api.get<{ templates: TemplateItem[] } | TemplateItem[]>(url);
-      const items = Array.isArray(res.data) ? res.data : res.data.templates || [];
-      setTemplates(items);
-    } catch (err: any) {
+      const items = await templatesApi.list(secteurFilter || undefined);
+      setTemplates(Array.isArray(items) ? items : []);
+    } catch {
       toast.error('Erreur lors du chargement de la marketplace de templates');
     } finally {
       setLoading(false);
@@ -46,13 +32,14 @@ export default function TemplatesPage() {
 
     setImportingId(templateId);
     try {
-      const res = await api.post<{ categoriesImportees: number; produitsImportes: number }>(`/api/templates/${templateId}/import`, {});
+      const result = await templatesApi.import(templateId);
       toast.success(
-        `Importation réussie ! (${res.data.categoriesImportees || 0} catégories, ${res.data.produitsImportes || 0} produits créés)`,
+        `Importation réussie ! (${result.categoriesImportees || 0} catégories, ${result.produitsImportes || 0} produits créés)`,
         { duration: 5000 }
       );
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Erreur lors de l\'importation');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erreur lors de l\'importation';
+      toast.error(msg);
     } finally {
       setImportingId(null);
     }
@@ -155,13 +142,7 @@ export default function TemplatesPage() {
                     onClick={() => handleImport(tpl.id, tpl.nom)}
                     className="w-full py-2.5 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
                   >
-                    {isImporting ? (
-                      'Importation...'
-                    ) : (
-                      <>
-                        <Download size={14} /> Importer ce catalogue
-                      </>
-                    )}
+                    {isImporting ? 'Importation...' : <><Download size={14} /> Importer ce catalogue</>}
                   </button>
                 </div>
               </div>

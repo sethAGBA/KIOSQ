@@ -503,3 +503,34 @@ export const auditApi = {
     return get<AuditLogsResponse>(`/api/audit-logs${query ? `?${query}` : ''}`);
   },
 };
+
+// ── Templates / Catalogue Marketplace ────────────────────
+
+export interface TemplateItem {
+  id: string;
+  tenantId: string;
+  nom: string;
+  description: string | null;
+  secteurActivite: string | null;
+  payload: {
+    categories?: unknown[];
+    produits?: unknown[];
+  };
+  createdAt: string;
+}
+
+export interface ImportResult {
+  categoriesImportees: number;
+  produitsImportes: number;
+}
+
+export const templatesApi = {
+  list: (secteur?: string) => {
+    const url = secteur ? `/api/templates?secteur=${encodeURIComponent(secteur)}` : '/api/templates';
+    return get<TemplateItem[]>(url);
+  },
+  export: (data: { nom: string; description?: string; secteurActivite?: string }) =>
+    post<TemplateItem>('/api/templates', data),
+  import: (id: string) =>
+    post<ImportResult>(`/api/templates/${id}/import`, {}),
+};

@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { getDb } from '../../db/client.js';
 import { magasins } from '../../db/schema.js';
-import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { requireTenantAuth, handleOptions } from '../_lib/auth.js';
 import { ok, err, numericRows, numericRow, parseBody } from '../_lib/response.js';
 
 const MagasinSchema = z.object({
@@ -16,14 +16,14 @@ const MagasinSchema = z.object({
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = await parseBody(req);
   if (handleOptions(req, res)) return;
-  const ctx = await requireAuth(req, res);
+  const ctx = await requireTenantAuth(req, res);
   if (!ctx) return;
 
   const db = getDb();
 
   if (req.method === 'GET') {
     try {
-      const rows = await db.select().from(magasins).orderBy(desc(magasins.createdAt));
+      const rows = await db.select().from(magasins).where(eq(magasins.tenantId, ctx.tenantId)).orderBy(desc(magasins.createdAt));
       return ok(res, numericRows(rows as Record<string, unknown>[]));
     } catch (error) {
       console.error('[Magasins GET]', error);
@@ -39,6 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const [row] = await db.insert(magasins).values({
         id: nanoid(),
+        tenantId: ctx.tenantId,
         nom: parsed.data.nom,
         adresse: parsed.data.adresse,
         telephone: parsed.data.telephone,

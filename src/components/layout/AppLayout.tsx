@@ -14,7 +14,7 @@ import { formatPrice } from '@/lib/format';
 import NotificationDrawer from './NotificationDrawer';
 import ImpersonationBanner from '@/components/superadmin/ImpersonationBanner';
 import OnboardingWizard from '@/components/onboarding/OnboardingWizard';
-import { ShieldCheck, History, Store as StoreIcon, Layers } from 'lucide-react';
+import { ShieldCheck, History, Layers } from 'lucide-react';
 
 type NavItem = {
   to: string;

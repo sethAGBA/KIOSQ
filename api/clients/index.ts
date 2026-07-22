@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { eq, ilike, or, desc } from 'drizzle-orm';
+import { eq, and, ilike, or, desc } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { getDb } from '../../db/client.js';
 import { clients } from '../../db/schema.js';
-import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { requireTenantAuth, handleOptions } from '../_lib/auth.js';
 import { ok, err, numericRows, numericRow, parseBody } from '../_lib/response.js';
 
 const ClientSchema = z.object({
@@ -24,7 +24,7 @@ const ClientSchema = z.object({
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = await parseBody(req);
   if (handleOptions(req, res)) return;
-  const ctx = await requireAuth(req, res);
+  const ctx = await requireTenantAuth(req, res);
   if (!ctx) return;
 
   const db = getDb();
@@ -36,10 +36,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       let rows;
       if (q) {
         rows = await db.select().from(clients)
-          .where(or(ilike(clients.nom, `%${q}%`), ilike(clients.email, `%${q}%`)))
+          .where(and(eq(clients.tenantId, ctx.tenantId), or(ilike(clients.nom, `%${q}%`), ilike(clients.email, `%${q}%`))))
           .orderBy(desc(clients.createdAt));
       } else {
-        rows = await db.select().from(clients).orderBy(desc(clients.createdAt));
+        rows = await db.select().from(clients).where(eq(clients.tenantId, ctx.tenantId)).orderBy(desc(clients.createdAt));
       }
       return ok(res, numericRows(rows));
     } catch (e) {
@@ -57,6 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const code = `CLI-${String(count.length + 1).padStart(3, '0')}`;
       const [row] = await db.insert(clients).values({
         id:        nanoid(),
+        tenantId:  ctx.tenantId,
         code,
         ...parsed.data,
         email:     parsed.data.email || null,

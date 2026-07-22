@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { ShieldAlert, Filter, ChevronLeft, ChevronRight, RefreshCw, Calendar, User, Activity } from 'lucide-react';
+import { ShieldAlert, ChevronLeft, ChevronRight, RefreshCw, Calendar, Activity } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { auditApi } from '@/lib/api';
-import type { AuditLogEntry, AuditLogsResponse } from '@/lib/api';
+import type { AuditLogEntry } from '@/lib/api';
 
 export default function AuditPage() {
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);

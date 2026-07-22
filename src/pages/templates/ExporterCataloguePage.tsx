@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Upload, ArrowLeft, Store, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Upload, ArrowLeft, Store, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { api } from '@/lib/api';
+import { templatesApi } from '@/lib/api';
 
 export default function ExporterCataloguePage() {
   const navigate = useNavigate();
@@ -20,7 +20,7 @@ export default function ExporterCataloguePage() {
 
     setLoading(true);
     try {
-      await api.post('/api/templates', {
+      await templatesApi.export({
         nom,
         description,
         secteurActivite,
@@ -28,8 +28,8 @@ export default function ExporterCataloguePage() {
 
       toast.success('Votre catalogue a été exporté sous forme de template avec succès !');
       navigate('/templates');
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Erreur lors de l\'exportation du catalogue');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de l\'exportation du catalogue');
     } finally {
       setLoading(false);
     }

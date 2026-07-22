@@ -1,21 +1,22 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { getDb } from '../../db/client.js';
 import { categories } from '../../db/schema.js';
-import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { requireTenantAuth, handleOptions } from '../_lib/auth.js';
 import { ok, err, parseBody } from '../_lib/response.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = await parseBody(req);
   if (handleOptions(req, res)) return;
-  const ctx = await requireAuth(req, res);
+  const ctx = await requireTenantAuth(req, res);
   if (!ctx) return;
 
   const db = getDb();
 
   if (req.method === 'GET') {
     try {
-      const rows = await db.select().from(categories);
+      const rows = await db.select().from(categories).where(eq(categories.tenantId, ctx.tenantId));
       return ok(res, rows);
     } catch (e) { return err(res, 'Erreur serveur', 500); }
   }
@@ -25,7 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { nom, description, couleur } = body as { nom: string; description?: string; couleur?: string };
     if (!nom) return err(res, 'Nom requis', 422);
     try {
-      const [row] = await db.insert(categories).values({ id: nanoid(), nom, description, couleur }).returning();
+      const [row] = await db.insert(categories).values({ id: nanoid(), tenantId: ctx.tenantId, nom, description, couleur }).returning();
       return ok(res, row, 201);
     } catch (e) { return err(res, 'Erreur serveur', 500); }
   }

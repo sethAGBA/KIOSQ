@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { getDb } from '../../db/client.js';
 import { unites } from '../../db/schema.js';
-import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { requireTenantAuth, handleOptions } from '../_lib/auth.js';
 import { ok, err, parseBody } from '../_lib/response.js';
 
 const UniteSchema = z.object({
@@ -14,7 +14,7 @@ const UniteSchema = z.object({
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res)) return;
-  const ctx = await requireAuth(req, res);
+  const ctx = await requireTenantAuth(req, res);
   if (!ctx) return;
 
   const db = getDb();
@@ -22,7 +22,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── GET /api/unites ───────────────────────────────────
   if (req.method === 'GET') {
     try {
-      const rows = await db.select().from(unites).orderBy(desc(unites.createdAt));
+      const rows = await db.select().from(unites).where(eq(unites.tenantId, ctx.tenantId)).orderBy(desc(unites.createdAt));
       return ok(res, rows);
     } catch (e) {
       console.error('[unites GET]', e);
@@ -39,6 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const [row] = await db.insert(unites).values({
         id: nanoid(),
+        tenantId: ctx.tenantId,
         ...parsed.data,
       }).returning();
       return ok(res, row, 201);
