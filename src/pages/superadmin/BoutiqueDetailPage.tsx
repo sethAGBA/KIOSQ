@@ -415,45 +415,50 @@ export default function BoutiqueDetailPage() {
           </SectionCard>
 
           {/* Users list */}
-          <SectionCard title={`Utilisateurs (${tenant.utilisateurs.length})`}>
-            {tenant.utilisateurs.length === 0 ? (
-              <p className="py-4 text-sm text-gray-400 text-center">Aucun utilisateur</p>
-            ) : (
-              <div className="divide-y divide-gray-50">
-                {tenant.utilisateurs.map((u) => (
-                  <div key={u.id} className="flex items-center gap-3 py-3">
-                    {/* Avatar */}
-                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                      <span className="text-xs font-semibold text-gray-500">
-                        {u.prenom?.[0]}{u.nom?.[0]}
-                      </span>
-                    </div>
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">
-                        {u.prenom} {u.nom}
-                      </p>
-                      <p className="text-xs text-gray-400 truncate">{u.email}</p>
-                    </div>
-                    {/* Role */}
-                    <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium capitalize">
-                      {u.role}
-                    </span>
-                    {/* Actif indicator */}
-                    {u.actif ? (
-                      <span title="Actif" className="shrink-0">
-                        <CheckCircle2 size={14} className="text-emerald-500" />
-                      </span>
-                    ) : (
-                      <span title="Inactif" className="shrink-0">
-                        <XCircle size={14} className="text-gray-300" />
-                      </span>
-                    )}
+          {(() => {
+            const utilisateursList = tenant.utilisateurs ?? [];
+            return (
+              <SectionCard title={`Utilisateurs (${utilisateursList.length})`}>
+                {utilisateursList.length === 0 ? (
+                  <p className="py-4 text-sm text-gray-400 text-center">Aucun utilisateur</p>
+                ) : (
+                  <div className="divide-y divide-gray-50">
+                    {utilisateursList.map((u) => (
+                      <div key={u.id} className="flex items-center gap-3 py-3">
+                        {/* Avatar */}
+                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                          <span className="text-xs font-semibold text-gray-500">
+                            {u.prenom?.[0]}{u.nom?.[0]}
+                          </span>
+                        </div>
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 truncate">
+                            {u.prenom} {u.nom}
+                          </p>
+                          <p className="text-xs text-gray-400 truncate">{u.email}</p>
+                        </div>
+                        {/* Role */}
+                        <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium capitalize">
+                          {u.role}
+                        </span>
+                        {/* Actif indicator */}
+                        {u.actif ? (
+                          <span title="Actif" className="shrink-0">
+                            <CheckCircle2 size={14} className="text-emerald-500" />
+                          </span>
+                        ) : (
+                          <span title="Inactif" className="shrink-0">
+                            <XCircle size={14} className="text-gray-300" />
+                          </span>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-          </SectionCard>
+                )}
+              </SectionCard>
+            );
+          })()}
         </div>
 
         {/* ── Right column: actions ────────────────────── */}
