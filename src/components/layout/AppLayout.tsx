@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import {
   LayoutDashboard, Users, Package, ShoppingCart, FileText,
   Truck, BarChart3, Settings, Bell, LogOut, ChevronRight,
-  Menu, X, TrendingUp, UserCog, Store, AlertTriangle, Crosshair,
+  Menu, X, TrendingUp, UserCog, Store, AlertTriangle, Crosshair, Sparkles,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
@@ -50,6 +50,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const leadsNouveauCount = useLeadsStore(s => s.leadsNouveauCount);
   const fetchLeadsNouveauCount = useLeadsStore(s => s.fetchLeadsNouveauCount);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
@@ -240,7 +241,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {/* Guide d'onboarding */}
+            <button
+              onClick={() => setOnboardingOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all shadow-sm border border-amber-200 hover:border-amber-400 bg-gradient-to-r from-amber-50 to-orange-50 text-amber-900"
+              title="Relancer le guide de démarrage"
+            >
+              <Sparkles size={14} className="text-amber-600 animate-pulse" />
+              <span className="hidden sm:inline">Guide de démarrage</span>
+            </button>
+
             {/* Notifications */}
             <button
               onClick={() => setNotifOpen(true)}
@@ -288,7 +299,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
 
       <NotificationDrawer isOpen={notifOpen} onClose={() => setNotifOpen(false)} />
-      <OnboardingWizard />
+      <OnboardingWizard isOpen={onboardingOpen} onClose={() => setOnboardingOpen(false)} />
     </div>
   );
 }

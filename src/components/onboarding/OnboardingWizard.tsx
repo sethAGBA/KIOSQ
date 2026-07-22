@@ -8,14 +8,18 @@ import { onboardingApi } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 
 interface OnboardingWizardProps {
+  isOpen?: boolean;
+  onClose?: () => void;
   onComplete?: () => void;
 }
 
-export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
+export default function OnboardingWizard({ isOpen: externalIsOpen, onClose, onComplete }: OnboardingWizardProps) {
   const { user, setUser } = useAuthStore();
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+
+  const visible = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen;
 
   // Form states for steps
   const [companyName, setCompanyName] = useState('');
@@ -31,7 +35,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
       try {
         const data = await onboardingApi.getStatus();
         if (data.premiereConnexion) {
-          setIsOpen(true);
+          setInternalIsOpen(true);
           setStep(data.onboardingStep > 0 ? Math.min(data.onboardingStep, 5) : 1);
         }
       } catch (err) {
@@ -41,7 +45,12 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
     checkStatus();
   }, []);
 
-  if (!isOpen) return null;
+  const closeWizard = () => {
+    setInternalIsOpen(false);
+    onClose?.();
+  };
+
+  if (!visible) return null;
 
   const handleStepSubmit = async (nextStep: number) => {
     setLoading(true);
@@ -49,7 +58,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
       await onboardingApi.updateStep(nextStep);
       if (nextStep > 5) {
         toast.success('Configuration initiale terminée ! Bienvenue sur Kiosq.');
-        setIsOpen(false);
+        closeWizard();
         if (user) {
           setUser({ ...user, premiereConnexion: false });
         }
@@ -69,7 +78,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
     try {
       await onboardingApi.ignore();
       toast('Onboarding ignoré. Vous pouvez tout configurer plus tard.', { icon: 'ℹ️' });
-      setIsOpen(false);
+      closeWizard();
       if (user) {
         setUser({ ...user, premiereConnexion: false });
       }
