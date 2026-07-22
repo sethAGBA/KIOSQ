@@ -1,6 +1,6 @@
 // Feature: gestion-multitenant, Property 11: Résolution de tenant depuis l'URL
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import fc from 'fast-check';
 
 /**
@@ -67,16 +67,6 @@ function sampleTenantResponse(slug: string) {
 
 function setFakeWindow(hostname: string, pathname: string) {
   (global as Record<string, unknown>).window = { location: { hostname, pathname } };
-}
-
-function makeEmptySessionStorage() {
-  const store: Record<string, string> = {};
-  return {
-    getItem:    (key: string) => store[key] ?? null,
-    setItem:    (key: string, value: string) => { store[key] = value; },
-    removeItem: (key: string) => { delete store[key]; },
-    clear:      () => { for (const k of Object.keys(store)) delete store[k]; },
-  };
 }
 
 function setFakeSessionStorage(preloaded?: Record<string, string>) {

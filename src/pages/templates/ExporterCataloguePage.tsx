@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Upload, ArrowLeft, Store, Sparkles } from 'lucide-react';
+import { Upload, ArrowLeft, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { templatesApi } from '@/lib/api';
 

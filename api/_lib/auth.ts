@@ -81,6 +81,9 @@ export type AuthContext = {
   impersonatedBy?: string;   // présent si session d'impersonation
 };
 
+/** AuthContext where tenantId is guaranteed non-null (returned by requireTenantAuth). */
+export type TenantAuthContext = Omit<AuthContext, 'tenantId'> & { tenantId: string };
+
 // ── Route guards ──────────────────────────────────────────
 
 /**
@@ -156,7 +159,7 @@ export function checkTenantStatus(tenant: {
 export async function requireTenantAuth(
   req: VercelRequest,
   res: VercelResponse
-): Promise<AuthContext | null> {
+): Promise<TenantAuthContext | null> {
   // 1. Extract + verify token
   const token = getTokenFromRequest(req);
   if (!token) {
@@ -214,9 +217,9 @@ export async function requireTenantAuth(
     role: payload.role,
     nom: payload.nom,
     prenom: payload.prenom,
-    tenantId,
+    tenantId,           // tenantId is string here (already verified non-null above)
     impersonatedBy: payload.impersonatedBy,
-  };
+  } satisfies TenantAuthContext;
 }
 
 /**

@@ -2,7 +2,7 @@
 
 import { describe, it } from 'vitest';
 import * as fc from 'fast-check';
-import { PLAN_LIMITS, getPlanLimitForResource } from '../../../api/_lib/planLimits.js';
+import { getPlanLimitForResource } from '../../../api/_lib/planLimits.js';
 import type { LimitedResource } from '../../../api/_lib/planLimits.js';
 
 /**
