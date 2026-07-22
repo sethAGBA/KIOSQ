@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../../db/client.js';
 import { fournisseurs } from '../../db/schema.js';
-import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { requireTenantAuth, handleOptions } from '../_lib/auth.js';
 import { ok, err, numericRow, parseBody} from '../_lib/response.js';
 
 const PatchSchema = z.object({
@@ -22,7 +22,7 @@ const PatchSchema = z.object({
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = await parseBody(req);
   if (handleOptions(req, res)) return;
-  const ctx = await requireAuth(req, res);
+  const ctx = await requireTenantAuth(req, res);
   if (!ctx) return;
 
   const { id } = req.query as { id: string };
@@ -30,7 +30,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'GET') {
     try {
-      const [row] = await db.select().from(fournisseurs).where(eq(fournisseurs.id, id)).limit(1);
+      const [row] = await db.select().from(fournisseurs)
+        .where(and(eq(fournisseurs.id, id), eq(fournisseurs.tenantId, ctx.tenantId!)))
+        .limit(1);
       if (!row) return err(res, 'Fournisseur introuvable', 404);
       return ok(res, numericRow(row));
     } catch (e) { return err(res, 'Erreur serveur', 500); }
@@ -43,7 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const [row] = await db.update(fournisseurs)
         .set({ ...parsed.data, updatedAt: new Date() })
-        .where(eq(fournisseurs.id, id))
+        .where(and(eq(fournisseurs.id, id), eq(fournisseurs.tenantId, ctx.tenantId!)))
         .returning();
       if (!row) return err(res, 'Fournisseur introuvable', 404);
       return ok(res, numericRow(row));

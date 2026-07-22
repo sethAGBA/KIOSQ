@@ -3,6 +3,8 @@
  * Falls back gracefully: if VITE_API_URL is not set, mock data is used via the stores.
  */
 
+import { getTenantId } from '@/lib/tenant';
+
 const BASE = import.meta.env.VITE_API_URL ?? '';
 
 export const USE_API = Boolean(import.meta.env.VITE_API_URL) || import.meta.env.PROD;
@@ -14,11 +16,20 @@ async function request<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
+  // Inject X-Tenant-ID at request time so it always reflects the current tenant,
+  // even if the store was populated after module load. Omit the header for
+  // superadmin sessions where getTenantId() returns null.
+  const tenantId = getTenantId();
+  const tenantHeader: Record<string, string> = tenantId
+    ? { 'X-Tenant-ID': tenantId }
+    : {};
+
   const res = await fetch(`${BASE}${path}`, {
     ...options,
     credentials: 'include', // send httpOnly cookie
     headers: {
       'Content-Type': 'application/json',
+      ...tenantHeader,
       ...options.headers,
     },
   });
@@ -39,6 +50,8 @@ const post = <T>(path: string, body: unknown) =>
 const patch = <T>(path: string, body: unknown) =>
   request<T>(path, { method: 'PATCH', body: JSON.stringify(body) });
 const del  = <T>(path: string) => request<T>(path, { method: 'DELETE' });
+
+export const api = { get, post, patch, del };
 
 // ── Auth ──────────────────────────────────────────────────
 export const authApi = {
@@ -222,6 +235,28 @@ export interface ApiNotification {
 export const notificationsApi = {
   list: () => get<ApiNotification[]>('/api/notifications'),
 };
+
+// ── Abonnement ────────────────────────────────────────────
+
+export interface AbonnementData {
+  plan: 'starter' | 'pro' | 'enterprise';
+  statut: 'actif' | 'essai' | 'suspendu';
+  dateEssaiFin: string | null;
+  usage: {
+    users: number;
+    produits: number;
+    magasins: number;
+  };
+  limites: {
+    users: number | null;    // null = illimité
+    produits: number | null;
+    magasins: number | null;
+  };
+}
+
+export const abonnementApi = {
+  get: () => get<AbonnementData>('/api/abonnement'),
+};
 export interface Parametres {
   id: string;
   nom: string;
@@ -260,4 +295,211 @@ export const unitesApi = {
   update: (id: string, data: { nom?: string; abreviation?: string }) =>
     patch<Unite>(`/api/unites/${id}`, data),
   remove: (id: string) => del<{ message: string }>(`/api/unites/${id}`),
+};
+
+// ── Leads ─────────────────────────────────────────────────
+export const leadsApi = {
+  list: (params: {
+    page?: number;
+    limit?: number;
+    statut?: string;
+    produit?: string;
+    score_min?: number;
+  } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.page      !== undefined) qs.set('page',      String(params.page));
+    if (params.limit     !== undefined) qs.set('limit',     String(params.limit));
+    if (params.statut)                  qs.set('statut',    params.statut);
+    if (params.produit)                 qs.set('produit',   params.produit);
+    if (params.score_min !== undefined) qs.set('score_min', String(params.score_min));
+    const query = qs.toString();
+    return get<{ leads: import('@/types').Lead[]; total: number; page: number; limit: number }>(
+      `/api/leads${query ? `?${query}` : ''}`
+    );
+  },
+  getById: (id: string) =>
+    get<import('@/types').Lead & { groupeNom: string }>(`/api/leads/${id}`),
+  create: (data: Partial<import('@/types').Lead>) =>
+    post<import('@/types').Lead>('/api/leads', data),
+  updateStatut: (id: string, statut: string) =>
+    patch<import('@/types').Lead>(`/api/leads/${id}`, { statut }),
+  convertir: (id: string) =>
+    post<import('@/types').Client>(`/api/leads/${id}/convertir`, {}),
+};
+
+// ── Groupes surveillés ────────────────────────────────────
+type GroupePayload = Partial<import('@/types').GroupeSurveille> & { cookieSession?: string };
+
+function toGroupeBody(data: GroupePayload) {
+  const { cookieSession, ...rest } = data;
+  return {
+    ...rest,
+    ...(cookieSession ? { cookieSessionPlaintext: cookieSession } : {}),
+  };
+}
+
+export const groupesApi = {
+  list: () =>
+    get<import('@/types').GroupeSurveille[]>('/api/groupes-surveilles'),
+  create: (data: GroupePayload) =>
+    post<import('@/types').GroupeSurveille>('/api/groupes-surveilles', toGroupeBody(data)),
+  update: (id: string, data: GroupePayload) =>
+    patch<import('@/types').GroupeSurveille>(`/api/groupes-surveilles/${id}`, toGroupeBody(data)),
+  remove: (id: string) =>
+    del<{ message: string }>(`/api/groupes-surveilles/${id}`),
+};
+
+// ── Onboarding ────────────────────────────────────────────
+
+export interface OnboardingStatus {
+  premiereConnexion: boolean;
+  onboardingStep: number;
+}
+
+export const onboardingApi = {
+  getStatus: () => get<OnboardingStatus>('/api/onboarding'),
+  updateStep: (onboardingStep: number) =>
+    patch<OnboardingStatus>('/api/onboarding', { onboardingStep }),
+  ignore: () =>
+    patch<OnboardingStatus>('/api/onboarding', { ignore: true }),
+};
+
+// ── Superadmin ────────────────────────────────────────────
+
+export interface SuperadminStats {
+  total: number;
+  parStatut: {
+    actif: number;
+    essai: number;
+    suspendu: number;
+  };
+  mrr: number;
+  tauxConversion90j: number;
+  courbe12mois: Array<{ mois: string; nouvelles: number }>;
+}
+
+export interface TenantListItem {
+  id: string;
+  nom: string;
+  slug: string;
+  plan: 'starter' | 'pro' | 'enterprise';
+  statut: 'actif' | 'essai' | 'suspendu';
+  createdAt: string;
+  nbUtilisateurs: number;
+  caTotal: number;
+  devise: string;
+}
+
+export interface TenantUser {
+  id: string;
+  nom: string;
+  prenom: string;
+  email: string;
+  role: string;
+  actif: boolean;
+}
+
+export interface TenantDetail {
+  id: string;
+  nom: string;
+  slug: string;
+  plan: 'starter' | 'pro' | 'enterprise';
+  statut: 'actif' | 'essai' | 'suspendu';
+  devise: string;
+  pays: string | null;
+  email: string;
+  telephone: string | null;
+  adresse: string | null;
+  domaine: string | null;
+  enMaintenance: boolean;
+  messageMaintenance: string | null;
+  dateEssaiFin: string | null;
+  logoUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+  utilisateurs: TenantUser[];
+}
+
+export interface TenantPatchPayload {
+  plan?: 'starter' | 'pro' | 'enterprise';
+  statut?: 'actif' | 'essai' | 'suspendu';
+  enMaintenance?: boolean;
+  messageMaintenance?: string | null;
+}
+
+export interface TenantCreatePayload {
+  nom: string;
+  emailAdmin: string;
+  plan: 'starter' | 'pro' | 'enterprise';
+  devise: string;
+  pays?: string;
+}
+
+export interface TenantCreateResult {
+  tenant: TenantDetail;
+  adminEmail: string;
+  adminPassword: string;
+}
+
+export const superadminApi = {
+  stats: () => get<SuperadminStats>('/api/superadmin/stats'),
+  tenants: {
+    list: (params?: { statut?: string; plan?: string; q?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.statut) qs.set('statut', params.statut);
+      if (params?.plan)   qs.set('plan',   params.plan);
+      if (params?.q)      qs.set('q',      params.q);
+      const query = qs.toString();
+      return get<TenantListItem[]>(`/api/superadmin/tenants${query ? `?${query}` : ''}`);
+    },
+    get:    (id: string) => get<TenantDetail>(`/api/superadmin/tenants/${id}`),
+    create: (data: TenantCreatePayload) =>
+      post<TenantCreateResult>('/api/superadmin/tenants', data),
+    update: (id: string, data: TenantPatchPayload) =>
+      patch<TenantDetail>(`/api/superadmin/tenants/${id}`, data),
+    impersonate: (id: string) =>
+      post<{ token: string; boutique: string }>(`/api/superadmin/tenants/${id}/impersonate`, {}),
+  },
+};
+
+// ── Audit Logs ────────────────────────────────────────────
+
+export interface AuditLogEntry {
+  id: string;
+  tenantId: string;
+  userId: string | null;
+  userEmail?: string;
+  userName?: string;
+  action: string;
+  resourceType: string;
+  resourceId: string | null;
+  details: unknown;
+  ipAddress: string | null;
+  createdAt: string;
+}
+
+export interface AuditLogsResponse {
+  items: AuditLogEntry[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export const auditApi = {
+  list: (params?: {
+    page?: number;
+    action?: string;
+    userId?: string;
+    dateDebut?: string;
+    dateFin?: string;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.page      !== undefined) qs.set('page',      String(params.page));
+    if (params?.action)                  qs.set('action',    params.action);
+    if (params?.userId)                  qs.set('userId',    params.userId);
+    if (params?.dateDebut)               qs.set('dateDebut', params.dateDebut);
+    if (params?.dateFin)                 qs.set('dateFin',   params.dateFin);
+    const query = qs.toString();
+    return get<AuditLogsResponse>(`/api/audit-logs${query ? `?${query}` : ''}`);
+  },
 };

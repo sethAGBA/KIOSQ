@@ -1,5 +1,5 @@
 // ── Auth / Utilisateurs ──────────────────────────────────
-export type UserRole = "admin" | "commercial" | "gestionnaire" | "comptable" | "lecteur";
+export type UserRole = "admin" | "commercial" | "gestionnaire" | "comptable" | "lecteur" | "superadmin";
 
 export interface AppUser {
   id: string;
@@ -12,6 +12,8 @@ export interface AppUser {
   avatar?: string;
   dernierLogin?: Date;
   createdAt: Date;
+  premiereConnexion?: boolean;
+  onboardingStep?: number;
 }
 
 // ── Entreprise / Configuration ───────────────────────────
@@ -322,4 +324,34 @@ export interface DataPoint {
   valeur: number;
   commandes?: number;
   benefice?: number;
+}
+
+// ── Leads ─────────────────────────────────────────────────
+export type StatutLead   = 'nouveau' | 'envoye' | 'ignore';
+export type StatutGroupe = 'actif' | 'inactif' | 'erreur';
+
+export interface Lead {
+  id: string;
+  groupeSurveilleId: string;
+  groupeNom?: string;          // présent dans GET /api/leads/:id (jointure)
+  clientId: string | null;
+  clientNom?: string | null;   // présent si converti
+  texteOriginal: string;
+  produitDetecte: string | null;
+  scoreConfiance: number | null;
+  lienPost: string | null;
+  statut: StatutLead;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface GroupeSurveille {
+  id: string;
+  nomGroupe: string;
+  urlGroupe: string;
+  statut: StatutGroupe;
+  // cookieSessionChiffre omis des réponses Interface
+  // cookieSession déchiffré présent uniquement pour rôles bot/admin
+  createdAt: Date;
+  updatedAt: Date;
 }

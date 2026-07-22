@@ -278,3 +278,32 @@ npm run db:generate   # Générer les migrations SQL
 - Validation des entrées avec **Zod** sur toutes les routes
 - Contrôle d'accès par **rôle** sur chaque endpoint
 - Variables sensibles exclusivement côté serveur (jamais exposées au front)
+
+
+
+Le bot démarre correctement — il manque juste `APIFY_TOKEN` et `GEMINI_API_KEY` dans `bot/.env`.Le `BOT_JWT` et `KIOSQ_API_URL` sont déjà configurés. Il manque uniquement les deux clés API externes.
+
+Pour que le bot fonctionne complètement, tu as besoin de :
+
+**1. `APIFY_TOKEN`** — récupère-le sur [apify.com/account/integrations](https://console.apify.com/account/integrations). C'est ce qui permet de scraper les groupes Facebook via leur infra.
+
+**2. `GEMINI_API_KEY`** — récupère-le sur [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey). Le plan gratuit suffit pour tester.
+
+Une fois que tu as les deux valeurs, renseigne-les dans `bot/.env` :
+
+```
+APIFY_TOKEN=apify_api_xxxxxxxxxxxxxxxxxxxxxxxx
+GEMINI_API_KEY=AIzaSy_xxxxxxxxxxxxxxxxxxxxxx
+```
+
+Ensuite, dans un second terminal, lance l'API kiosq :
+```bash
+cd /Users/seth/development/kiosq && npm run api:dev
+```
+
+Et relance le bot :
+```bash
+cd bot && npm start
+```
+
+Le bot va alors appeler `GET /api/groupes-surveilles` pour charger les groupes actifs. Si tu n'as pas encore créé de groupe, il s'arrêtera sans rien faire — c'est normal. Tu peux en créer un depuis l'interface kiosq sur `/leads` (onglet Groupes surveillés, rôle admin requis).

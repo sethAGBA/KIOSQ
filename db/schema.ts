@@ -4,8 +4,11 @@ import {
 } from 'drizzle-orm/pg-core';
 
 // ── Enums ────────────────────────────────────────────────
+export const planEnum         = pgEnum('plan_tenant',    ['starter', 'pro', 'enterprise']);
+export const statutTenantEnum = pgEnum('statut_tenant',  ['actif', 'suspendu', 'essai']);
+
 export const userRoleEnum = pgEnum('user_role', [
-  'admin', 'commercial', 'gestionnaire', 'comptable', 'lecteur',
+  'superadmin', 'admin', 'commercial', 'gestionnaire', 'comptable', 'lecteur',
 ]);
 
 export const typeClientEnum = pgEnum('type_client', ['particulier', 'entreprise']);
@@ -25,18 +28,45 @@ export const statutCFEnum = pgEnum('statut_commande_fournisseur', [
   'brouillon', 'commandee', 'recu_partiel', 'recu', 'annulee',
 ]);
 
+export const statutGroupeEnum = pgEnum('statut_groupe', ['actif', 'inactif', 'erreur']);
+export const statutLeadEnum   = pgEnum('statut_lead',   ['nouveau', 'envoye', 'ignore']);
+
+// ── Tenants ───────────────────────────────────────────────
+export const tenants = pgTable('tenants', {
+  id:                 text('id').primaryKey(),
+  nom:                text('nom').notNull(),
+  slug:               text('slug').notNull().unique(),
+  domaine:            text('domaine'),
+  plan:               planEnum('plan').notNull().default('starter'),
+  statut:             statutTenantEnum('statut').notNull().default('essai'),
+  dateEssaiFin:       timestamp('date_essai_fin'),
+  logoUrl:            text('logo_url'),
+  devise:             text('devise').notNull().default('XOF'),
+  pays:               text('pays'),
+  telephone:          text('telephone'),
+  email:              text('email').notNull(),
+  adresse:            text('adresse'),
+  enMaintenance:      boolean('en_maintenance').notNull().default(false),
+  messageMaintenance: text('message_maintenance'),
+  createdAt:          timestamp('created_at').notNull().defaultNow(),
+  updatedAt:          timestamp('updated_at').notNull().defaultNow(),
+});
+
 // ── Users ────────────────────────────────────────────────
 export const users = pgTable('users', {
-  id:           text('id').primaryKey(),
-  email:        text('email').notNull().unique(),
-  passwordHash: text('password_hash').notNull(),
-  nom:          text('nom').notNull(),
-  prenom:       text('prenom').notNull(),
-  role:         userRoleEnum('role').notNull().default('lecteur'),
-  telephone:    text('telephone'),
-  actif:        boolean('actif').notNull().default(true),
-  createdAt:    timestamp('created_at').notNull().defaultNow(),
-  updatedAt:    timestamp('updated_at').notNull().defaultNow(),
+  id:                text('id').primaryKey(),
+  email:             text('email').notNull().unique(),
+  passwordHash:      text('password_hash').notNull(),
+  nom:               text('nom').notNull(),
+  prenom:            text('prenom').notNull(),
+  role:              userRoleEnum('role').notNull().default('lecteur'),
+  telephone:         text('telephone'),
+  actif:             boolean('actif').notNull().default(true),
+  tenantId:          text('tenant_id').references(() => tenants.id),
+  premiereConnexion: boolean('premiere_connexion').notNull().default(true),
+  onboardingStep:    integer('onboarding_step').notNull().default(0),
+  createdAt:         timestamp('created_at').notNull().defaultNow(),
+  updatedAt:         timestamp('updated_at').notNull().defaultNow(),
 });
 
 // ── Categories ────────────────────────────────────────────
@@ -45,6 +75,7 @@ export const categories = pgTable('categories', {
   nom:         text('nom').notNull(),
   description: text('description'),
   couleur:     text('couleur'),
+  tenantId:    text('tenant_id').notNull().references(() => tenants.id),
   createdAt:   timestamp('created_at').notNull().defaultNow(),
 });
 
@@ -55,6 +86,7 @@ export const magasins = pgTable('magasins', {
   adresse:     text('adresse'),
   telephone:   text('telephone'),
   actif:       boolean('actif').notNull().default(true),
+  tenantId:    text('tenant_id').notNull().references(() => tenants.id),
   createdAt:   timestamp('created_at').notNull().defaultNow(),
   updatedAt:   timestamp('updated_at').notNull().defaultNow(),
 });
@@ -74,6 +106,7 @@ export const fournisseurs = pgTable('fournisseurs', {
   totalAchats:         numeric('total_achats', { precision: 15, scale: 2 }).notNull().default('0'),
   actif:               boolean('actif').notNull().default(true),
   notes:               text('notes'),
+  tenantId:            text('tenant_id').notNull().references(() => tenants.id),
   createdAt:           timestamp('created_at').notNull().defaultNow(),
   updatedAt:           timestamp('updated_at').notNull().defaultNow(),
 });
@@ -99,6 +132,7 @@ export const produits = pgTable('produits', {
   codeBarres:   text('code_barres'),
   magasinId:    text('magasin_id').references(() => magasins.id),
   actif:        boolean('actif').notNull().default(true),
+  tenantId:     text('tenant_id').notNull().references(() => tenants.id),
   createdAt:    timestamp('created_at').notNull().defaultNow(),
   updatedAt:    timestamp('updated_at').notNull().defaultNow(),
 });
@@ -123,6 +157,7 @@ export const clients = pgTable('clients', {
   derniereCommande: timestamp('derniere_commande'),
   actif:            boolean('actif').notNull().default(true),
   notes:            text('notes'),
+  tenantId:         text('tenant_id').notNull().references(() => tenants.id),
   createdAt:        timestamp('created_at').notNull().defaultNow(),
   updatedAt:        timestamp('updated_at').notNull().defaultNow(),
 });
@@ -149,6 +184,7 @@ export const commandes = pgTable('commandes', {
   dateValidite:     timestamp('date_validite'),
   adresseLivraison: text('adresse_livraison'),
   notes:            text('notes'),
+  tenantId:         text('tenant_id').notNull().references(() => tenants.id),
   createdBy:        text('created_by').references(() => users.id),
   createdAt:        timestamp('created_at').notNull().defaultNow(),
   updatedAt:        timestamp('updated_at').notNull().defaultNow(),
@@ -175,6 +211,7 @@ export const factures = pgTable('factures', {
   dateFacture:    timestamp('date_facture').notNull().defaultNow(),
   dateEcheance:   timestamp('date_echeance').notNull(),
   notes:          text('notes'),
+  tenantId:       text('tenant_id').notNull().references(() => tenants.id),
   createdBy:      text('created_by').references(() => users.id),
   createdAt:      timestamp('created_at').notNull().defaultNow(),
   updatedAt:      timestamp('updated_at').notNull().defaultNow(),
@@ -199,15 +236,16 @@ export const commandesFournisseurs = pgTable('commandes_fournisseurs', {
   dateLivraisonPrevue:  timestamp('date_livraison_prevue'),
   dateReception:        timestamp('date_reception'),
   notes:                text('notes'),
+  tenantId:             text('tenant_id').notNull().references(() => tenants.id),
   createdBy:            text('created_by').references(() => users.id),
   createdAt:            timestamp('created_at').notNull().defaultNow(),
   updatedAt:            timestamp('updated_at').notNull().defaultNow(),
 });
 
 // ── Paramètres entreprise ─────────────────────────────────
-// Table clé-valeur : une seule ligne avec id = 'default'
+// Table clé-valeur : une seule ligne par tenant avec id = 'default'
 export const parametres = pgTable('parametres', {
-  id:          text('id').primaryKey(),           // always 'default'
+  id:          text('id').primaryKey(),           // always 'default' (per tenant)
   nom:         text('nom').notNull().default('Kiosq Commercial'),
   adresse:     text('adresse'),
   telephone:   text('telephone'),
@@ -218,6 +256,7 @@ export const parametres = pgTable('parametres', {
   tva:         text('tva').notNull().default('18'),
   piedDePage:  text('pied_de_page'),
   logoUrl:     text('logo_url'),
+  tenantId:    text('tenant_id').notNull().references(() => tenants.id),
   updatedAt:   timestamp('updated_at').notNull().defaultNow(),
 });
 
@@ -226,11 +265,67 @@ export const unites = pgTable('unites', {
   id:           text('id').primaryKey(),
   nom:          text('nom').notNull(),
   abreviation:  text('abreviation').notNull(),
+  tenantId:     text('tenant_id').notNull().references(() => tenants.id),
   createdAt:    timestamp('created_at').notNull().defaultNow(),
   updatedAt:    timestamp('updated_at').notNull().defaultNow(),
 });
 
+// ── Groupes surveillés ────────────────────────────────────
+export const groupesSurveilles = pgTable('groupes_surveilles', {
+  id:                   text('id').primaryKey(),
+  nomGroupe:            text('nom_groupe').notNull(),
+  urlGroupe:            text('url_groupe').notNull().unique(),
+  cookieSessionChiffre: text('cookie_session_chiffre'),
+  statut:               statutGroupeEnum('statut').notNull().default('actif'),
+  tenantId:             text('tenant_id').notNull().references(() => tenants.id),
+  createdAt:            timestamp('created_at').notNull().defaultNow(),
+  updatedAt:            timestamp('updated_at').notNull().defaultNow(),
+});
+
+// ── Leads ─────────────────────────────────────────────────
+export const leads = pgTable('leads', {
+  id:                text('id').primaryKey(),
+  groupeSurveilleId: text('groupe_surveille_id')
+                       .notNull()
+                       .references(() => groupesSurveilles.id),
+  clientId:          text('client_id')
+                       .references(() => clients.id),
+  texteOriginal:     text('texte_original').notNull(),
+  produitDetecte:    text('produit_detecte'),
+  scoreConfiance:    numeric('score_confiance', { precision: 4, scale: 3 }),
+  lienPost:          text('lien_post'),
+  statut:            statutLeadEnum('statut').notNull().default('nouveau'),
+  tenantId:          text('tenant_id').notNull().references(() => tenants.id),
+  createdAt:         timestamp('created_at').notNull().defaultNow(),
+  updatedAt:         timestamp('updated_at').notNull().defaultNow(),
+});
+
+// ── Audit Logs ────────────────────────────────────────────
+export const auditLogs = pgTable('audit_logs', {
+  id:           text('id').primaryKey(),
+  tenantId:     text('tenant_id').notNull().references(() => tenants.id),
+  userId:       text('user_id').references(() => users.id),
+  action:       text('action').notNull(),
+  resourceType: text('resource_type').notNull(),
+  resourceId:   text('resource_id'),
+  details:      jsonb('details'),
+  ipAddress:    text('ip_address'),
+  createdAt:    timestamp('created_at').notNull().defaultNow(),
+});
+
+// ── Catalogue templates ───────────────────────────────────
+export const catalogueTemplates = pgTable('catalogue_templates', {
+  id:              text('id').primaryKey(),
+  tenantId:        text('tenant_id').notNull().references(() => tenants.id),
+  nom:             text('nom').notNull(),
+  description:     text('description'),
+  secteurActivite: text('secteur_activite'),
+  payload:         jsonb('payload').notNull(), // { categories: [], produits: [] }
+  createdAt:       timestamp('created_at').notNull().defaultNow(),
+});
+
 // ── Type helpers ──────────────────────────────────────────
+export type TenantRow         = typeof tenants.$inferSelect;
 export type UserRow           = typeof users.$inferSelect;
 export type CategoryRow       = typeof categories.$inferSelect;
 export type MagasinRow        = typeof magasins.$inferSelect;
@@ -242,3 +337,7 @@ export type FactureRow        = typeof factures.$inferSelect;
 export type CommandeCFRow     = typeof commandesFournisseurs.$inferSelect;
 export type ParametresRow     = typeof parametres.$inferSelect;
 export type UniteRow          = typeof unites.$inferSelect;
+export type GroupeSurveilleRow = typeof groupesSurveilles.$inferSelect;
+export type LeadRow            = typeof leads.$inferSelect;
+export type AuditLogRow            = typeof auditLogs.$inferSelect;
+export type CatalogueTemplateRow   = typeof catalogueTemplates.$inferSelect;

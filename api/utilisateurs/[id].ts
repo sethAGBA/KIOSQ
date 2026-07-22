@@ -1,10 +1,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../../db/client.js';
 import { users } from '../../db/schema.js';
-import { requireAuth, handleOptions } from '../_lib/auth.js';
-import { ok, err, parseBody} from '../_lib/response.js';
+import { requireTenantAuth, handleOptions } from '../_lib/auth.js';
+import { ok, err, parseBody } from '../_lib/response.js';
+import { logAction } from '../_lib/auditLog.js';
 
 const PatchSchema = z.object({
   nom:       z.string().min(1).optional(),
@@ -17,7 +18,7 @@ const PatchSchema = z.object({
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = await parseBody(req);
   if (handleOptions(req, res)) return;
-  const ctx = await requireAuth(req, res);
+  const ctx = await requireTenantAuth(req, res);
   if (!ctx) return;
   if (ctx.role !== 'admin') return err(res, 'Accès refusé', 403);
 
@@ -31,7 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const [row] = await db.update(users)
         .set({ ...parsed.data, updatedAt: new Date() })
-        .where(eq(users.id, id))
+        .where(and(eq(users.id, id), eq(users.tenantId, ctx.tenantId!)))
         .returning({
           id:        users.id,
           email:     users.email,
@@ -54,9 +55,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'DELETE') {
     if (ctx.sub === id) return err(res, 'Impossible de se désactiver soi-même', 400);
     try {
-      await db.update(users)
+      const [row] = await db.update(users)
         .set({ actif: false, updatedAt: new Date() })
-        .where(eq(users.id, id));
+        .where(and(eq(users.id, id), eq(users.tenantId, ctx.tenantId!)))
+        .returning({ id: users.id });
+      if (!row) return err(res, 'Utilisateur introuvable', 404);
+      await logAction(db, ctx.tenantId!, ctx.sub, 'user.disabled', 'user', id);
       return ok(res, { message: 'Utilisateur désactivé' });
     } catch (e) {
       console.error('[utilisateurs/:id DELETE]', e);

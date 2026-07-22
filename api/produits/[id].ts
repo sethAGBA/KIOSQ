@@ -1,10 +1,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../../db/client.js';
 import { produits } from '../../db/schema.js';
-import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { requireTenantAuth, handleOptions } from '../_lib/auth.js';
 import { ok, err, numericRow, parseBody} from '../_lib/response.js';
+import { logAction, AUDIT_ACTIONS } from '../_lib/auditLog.js';
 
 const emptyToUndefined = z.string().optional().transform(v => v === '' ? undefined : v);
 
@@ -31,7 +32,7 @@ const PatchSchema = z.object({
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = await parseBody(req);
   if (handleOptions(req, res)) return;
-  const ctx = await requireAuth(req, res);
+  const ctx = await requireTenantAuth(req, res);
   if (!ctx) return;
 
   const { id } = req.query as { id: string };
@@ -39,7 +40,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'GET') {
     try {
-      const [row] = await db.select().from(produits).where(eq(produits.id, id)).limit(1);
+      const [row] = await db.select().from(produits)
+        .where(and(eq(produits.id, id), eq(produits.tenantId, ctx.tenantId!)))
+        .limit(1);
       if (!row) return err(res, 'Produit introuvable', 404);
       return ok(res, numericRow(row));
     } catch (e) { return err(res, 'Erreur serveur', 500); }
@@ -70,7 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (parsed.data.actif         !== undefined) updates.actif         = parsed.data.actif;
       const [row] = await db.update(produits)
         .set(updates as Parameters<ReturnType<typeof db.update<typeof produits>>['set']>[0])
-        .where(eq(produits.id, id))
+        .where(and(eq(produits.id, id), eq(produits.tenantId, ctx.tenantId!)))
         .returning();
       if (!row) return err(res, 'Produit introuvable', 404);
       return ok(res, numericRow(row));
@@ -80,7 +83,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'DELETE') {
     if (ctx.role !== 'admin') return err(res, 'Accès refusé', 403);
     try {
-      await db.update(produits).set({ actif: false, updatedAt: new Date() }).where(eq(produits.id, id));
+      await db.update(produits)
+        .set({ actif: false, updatedAt: new Date() })
+        .where(and(eq(produits.id, id), eq(produits.tenantId, ctx.tenantId!)));
+      await logAction(
+        db,
+        ctx.tenantId!,
+        ctx.sub,
+        AUDIT_ACTIONS.PRODUIT_DELETED,
+        'produit',
+        id
+      );
       return ok(res, { message: 'Produit désactivé' });
     } catch (e) { return err(res, 'Erreur serveur', 500); }
   }

@@ -1,12 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../../db/client.js';
 import { parametres } from '../../db/schema.js';
-import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { requireTenantAuth, handleOptions } from '../_lib/auth.js';
 import { ok, err, parseBody } from '../_lib/response.js';
-
-const DEFAULT_ID = 'default';
 
 const PatchSchema = z.object({
   nom:        z.string().min(1).optional(),
@@ -23,18 +21,22 @@ const PatchSchema = z.object({
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res)) return;
-  const ctx = await requireAuth(req, res);
+  const ctx = await requireTenantAuth(req, res);
   if (!ctx) return;
 
   const db = getDb();
+  // Use a tenant-scoped ID so each tenant has their own settings row
+  const tenantDefaultId = `default-${ctx.tenantId!}`;
 
   // ── GET /api/parametres ───────────────────────────────
   if (req.method === 'GET') {
     try {
-      let [row] = await db.select().from(parametres).where(eq(parametres.id, DEFAULT_ID)).limit(1);
+      let [row] = await db.select().from(parametres)
+        .where(and(eq(parametres.tenantId, ctx.tenantId!), eq(parametres.id, tenantDefaultId)))
+        .limit(1);
       // Auto-create defaults if not yet seeded
       if (!row) {
-        [row] = await db.insert(parametres).values({ id: DEFAULT_ID }).returning();
+        [row] = await db.insert(parametres).values({ id: tenantDefaultId, tenantId: ctx.tenantId! }).returning();
       }
       return ok(res, row);
     } catch (e) {
@@ -51,16 +53,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!parsed.success) return err(res, 'Données invalides', 422);
     try {
       // Upsert: update if exists, insert if not
-      const existing = await db.select().from(parametres).where(eq(parametres.id, DEFAULT_ID)).limit(1);
+      const existing = await db.select().from(parametres)
+        .where(and(eq(parametres.tenantId, ctx.tenantId!), eq(parametres.id, tenantDefaultId)))
+        .limit(1);
       let row;
       if (existing.length > 0) {
         [row] = await db.update(parametres)
           .set({ ...parsed.data, updatedAt: new Date() })
-          .where(eq(parametres.id, DEFAULT_ID))
+          .where(and(eq(parametres.tenantId, ctx.tenantId!), eq(parametres.id, tenantDefaultId)))
           .returning();
       } else {
         [row] = await db.insert(parametres)
-          .values({ id: DEFAULT_ID, ...parsed.data })
+          .values({ id: tenantDefaultId, tenantId: ctx.tenantId!, ...parsed.data })
           .returning();
       }
       return ok(res, row);

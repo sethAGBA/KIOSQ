@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { eq, inArray, lte, gte, and, sql } from 'drizzle-orm';
 import { getDb } from '../../../db/client.js';
 import { factures, commandes, produits } from '../../../db/schema.js';
-import { requireAuth, handleOptions } from '../../_lib/auth.js';
+import { requireTenantAuth, handleOptions } from '../../_lib/auth.js';
 import { ok, err } from '../../_lib/response.js';
 
 // ── Types ─────────────────────────────────────────────────
@@ -73,7 +73,7 @@ export function buildCaParMois(
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res)) return;
-  const ctx = await requireAuth(req, res);
+  const ctx = await requireTenantAuth(req, res);
   if (!ctx) return;
 
   if (req.method !== 'GET') return err(res, 'Méthode non autorisée', 405);
@@ -102,6 +102,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .from(factures)
         .where(
           and(
+            eq(factures.tenantId, ctx.tenantId!),
             eq(factures.statut, 'payee'),
             gte(factures.dateFacture, startOfMonth),
             lte(factures.dateFacture, endOfMonth),
@@ -113,7 +114,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .select({ count: sql<string>`COUNT(*)` })
         .from(commandes)
         .where(
-          inArray(commandes.statut, ['brouillon', 'envoye', 'confirme', 'en_preparation', 'expedie']),
+          and(
+            eq(commandes.tenantId, ctx.tenantId!),
+            inArray(commandes.statut, ['brouillon', 'envoye', 'confirme', 'en_preparation', 'expedie']),
+          ),
         ),
 
       // alertesStock: COUNT(*) of active products with stockActuel <= stockMinimum
@@ -122,6 +126,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .from(produits)
         .where(
           and(
+            eq(produits.tenantId, ctx.tenantId!),
             eq(produits.actif, true),
             lte(produits.stockActuel, produits.stockMinimum),
           ),
@@ -131,7 +136,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       db
         .select({ total: sql<string>`COALESCE(SUM(${factures.resteAPayer}), 0)` })
         .from(factures)
-        .where(eq(factures.statut, 'en_retard')),
+        .where(and(eq(factures.tenantId, ctx.tenantId!), eq(factures.statut, 'en_retard'))),
 
       // caParMois: all paid factures in the last 12 months (raw rows, grouped in JS)
       db
@@ -139,6 +144,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .from(factures)
         .where(
           and(
+            eq(factures.tenantId, ctx.tenantId!),
             eq(factures.statut, 'payee'),
             gte(factures.dateFacture, start12Months),
           ),

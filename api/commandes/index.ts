@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { getDb } from '../../db/client.js';
 import { commandes, clients } from '../../db/schema.js';
-import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { requireTenantAuth, handleOptions } from '../_lib/auth.js';
 import { ok, err, numericRows, numericRow, parseBody } from '../_lib/response.js';
 
 const LigneSchema = z.object({
@@ -36,7 +36,7 @@ const CommandeSchema = z.object({
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = await parseBody(req);
   if (handleOptions(req, res)) return;
-  const ctx = await requireAuth(req, res);
+  const ctx = await requireTenantAuth(req, res);
   if (!ctx) return;
 
   const db = getDb();
@@ -44,7 +44,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'GET') {
     try {
       const { type, statut } = req.query as Record<string, string>;
-      let rows = await db.select().from(commandes).orderBy(desc(commandes.createdAt));
+      let rows = await db.select().from(commandes)
+        .where(eq(commandes.tenantId, ctx.tenantId!))
+        .orderBy(desc(commandes.createdAt));
       if (type) rows = rows.filter(r => r.type === type);
       if (statut && statut !== 'tous') rows = rows.filter(r => r.statut === statut);
       return ok(res, numericRows(rows as Record<string, unknown>[]));
@@ -64,11 +66,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       // Get client name
       const [client] = await db.select({ nom: clients.nom })
-        .from(clients).where(eq(clients.id, parsed.data.clientId)).limit(1);
+        .from(clients).where(and(eq(clients.id, parsed.data.clientId), eq(clients.tenantId, ctx.tenantId!))).limit(1);
       if (!client) return err(res, 'Client introuvable', 404);
 
       // Build numero
-      const all = await db.select().from(commandes);
+      const all = await db.select().from(commandes).where(eq(commandes.tenantId, ctx.tenantId!));
       const year = new Date().getFullYear();
       const prefix = parsed.data.type === 'devis' ? 'DEV' : 'CMD';
       const numero = `${prefix}-${year}-${String(all.length + 1).padStart(3, '0')}`;
@@ -77,6 +79,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const [row] = await db.insert(commandes).values({
         id:               nanoid(),
+        tenantId:         ctx.tenantId!,
         numero,
         type:             parsed.data.type,
         clientId:         parsed.data.clientId,

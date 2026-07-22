@@ -115,6 +115,52 @@ async function main() {
   });
   app.all('/api/utilisateurs', adapt('./api/utilisateurs/index.ts'));
 
+  // ── Leads ────────────────────────────────────────────────
+  app.post('/api/leads/:id/convertir', async (req, res) => {
+    req.query.id = req.params.id;
+    const { default: handler } = await import('./api/leads/[id]/convertir.ts');
+    await handler(req as never, res as never);
+  });
+  app.all('/api/leads/:id', async (req, res) => {
+    req.query.id = req.params.id;
+    const { default: handler } = await import('./api/leads/[id].ts');
+    await handler(req as never, res as never);
+  });
+  app.all('/api/leads', adapt('./api/leads/index.ts'));
+
+  // ── Multi-Tenant & Superadmin ────────────────────────────
+  app.get('/api/tenants/resolve', adapt('./api/tenants/resolve.ts'));
+  app.post('/api/auth/impersonate', adapt('./api/auth/impersonate.ts'));
+
+  app.all('/api/superadmin/tenants/:id/impersonate', async (req, res) => {
+    req.query.id = req.params.id;
+    const { default: handler } = await import('./api/superadmin/tenants/[id]/impersonate.ts');
+    await handler(req as never, res as never);
+  });
+  app.all('/api/superadmin/tenants/:id/clone', async (req, res) => {
+    req.query.id = req.params.id;
+    const { default: handler } = await import('./api/superadmin/tenants/[id]/clone.ts');
+    await handler(req as never, res as never);
+  });
+  app.all('/api/superadmin/tenants/:id', async (req, res) => {
+    req.query.id = req.params.id;
+    const { default: handler } = await import('./api/superadmin/tenants/[id].ts');
+    await handler(req as never, res as never);
+  });
+  app.all('/api/superadmin/tenants', adapt('./api/superadmin/tenants/index.ts'));
+  app.get('/api/superadmin/stats', adapt('./api/superadmin/stats.ts'));
+
+  app.all('/api/audit-logs', adapt('./api/audit-logs/index.ts'));
+  app.all('/api/abonnement', adapt('./api/abonnement/index.ts'));
+  app.all('/api/onboarding', adapt('./api/onboarding/index.ts'));
+
+  app.all('/api/templates/:id/import', async (req, res) => {
+    req.query.id = req.params.id;
+    const { default: handler } = await import('./api/templates/[id]/import.ts');
+    await handler(req as never, res as never);
+  });
+  app.all('/api/templates', adapt('./api/templates/index.ts'));
+
   const PORT = 3001;
   app.listen(PORT, () => {
     console.log(`\n🚀 API server ready at http://localhost:${PORT}`);
@@ -130,7 +176,9 @@ async function main() {
     console.log('   GET    /api/dashboard/stats     → statistiques dashboard');
     console.log('   GET    /api/parametres          → paramètres entreprise');
     console.log('   PATCH  /api/parametres          → modifier paramètres');
-    console.log('   GET    /api/unites              → unités de mesure\n');
+    console.log('   GET    /api/unites              → unités de mesure');
+    console.log('   GET    /api/leads              → leads (capture)');
+    console.log('   GET    /api/groupes-surveilles → groupes Facebook\n');
   });
 }
 

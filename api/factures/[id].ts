@@ -1,11 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { getDb } from '../../db/client.js';
 import { factures, produits } from '../../db/schema.js';
-import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { requireTenantAuth, handleOptions } from '../_lib/auth.js';
 import { ok, err, numericRow, parseBody} from '../_lib/response.js';
+import { logAction } from '../_lib/auditLog.js';
 
 const PatchSchema = z.object({
   statut: z.enum(['brouillon','envoyee','payee','partielle','en_retard','annulee']).optional(),
@@ -23,7 +24,7 @@ const PaiementSchema = z.object({
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = await parseBody(req);
   if (handleOptions(req, res)) return;
-  const ctx = await requireAuth(req, res);
+  const ctx = await requireTenantAuth(req, res);
   if (!ctx) return;
 
   const { id } = req.query as { id: string };
@@ -31,7 +32,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'GET') {
     try {
-      const [row] = await db.select().from(factures).where(eq(factures.id, id)).limit(1);
+      const [row] = await db.select().from(factures)
+        .where(and(eq(factures.id, id), eq(factures.tenantId, ctx.tenantId!)))
+        .limit(1);
       if (!row) return err(res, 'Facture introuvable', 404);
       return ok(res, numericRow(row));
     } catch (e) { return err(res, 'Erreur serveur', 500); }
@@ -51,7 +54,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
       // 1. Fetch current status to check if it's changing to 'annulee'
-      const [existing] = await db.select().from(factures).where(eq(factures.id, id)).limit(1);
+      const [existing] = await db.select().from(factures)
+        .where(and(eq(factures.id, id), eq(factures.tenantId, ctx.tenantId!)))
+        .limit(1);
       if (!existing) return err(res, 'Facture introuvable', 404);
 
       const isCancelling = parsed.data.statut === 'annulee' && existing.statut !== 'annulee';
@@ -59,7 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // 2. Perform the update
       const [row] = await db.update(factures)
         .set({ ...parsed.data, updatedAt: new Date() })
-        .where(eq(factures.id, id))
+        .where(and(eq(factures.id, id), eq(factures.tenantId, ctx.tenantId!)))
         .returning();
 
       // 3. If cancelling, restore stock
@@ -71,17 +76,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (quantite > 0) {
             const ref = designation.split(' — ')[0]?.trim();
             if (ref) {
-              // Find product by reference
-              const [prod] = await db.select().from(produits).where(eq(produits.reference, ref)).limit(1);
+              const [prod] = await db.select().from(produits)
+                .where(and(eq(produits.reference, ref), eq(produits.tenantId, ctx.tenantId!)))
+                .limit(1);
               if (prod) {
                 await db.update(produits)
                   .set({ stockActuel: prod.stockActuel + quantite, updatedAt: new Date() })
-                  .where(eq(produits.id, prod.id));
+                  .where(and(eq(produits.id, prod.id), eq(produits.tenantId, ctx.tenantId!)));
               }
             }
           }
         }
       }
+
+      await logAction(db, ctx.tenantId!, ctx.sub, 'facture.updated', 'facture', id);
 
       return ok(res, numericRow(row));
     } catch (e) {
@@ -90,12 +98,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // ── POST /api/factures/:id/paiement via query param ───
+  // ── POST /api/factures/:id (paiement) ─────────────────
   if (req.method === 'POST') {
     const parsed = PaiementSchema.safeParse(body);
     if (!parsed.success) return err(res, 'Données invalides', 422);
     try {
-      const [existing] = await db.select().from(factures).where(eq(factures.id, id)).limit(1);
+      const [existing] = await db.select().from(factures)
+        .where(and(eq(factures.id, id), eq(factures.tenantId, ctx.tenantId!)))
+        .limit(1);
       if (!existing) return err(res, 'Facture introuvable', 404);
 
       const paiements = (existing.paiements as object[]) ?? [];
@@ -114,8 +124,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           statut: statut as typeof existing.statut,
           updatedAt: new Date(),
         })
-        .where(eq(factures.id, id))
+        .where(and(eq(factures.id, id), eq(factures.tenantId, ctx.tenantId!)))
         .returning();
+
+      await logAction(db, ctx.tenantId!, ctx.sub, 'facture.updated', 'facture', id);
+
       return ok(res, numericRow(row));
     } catch (e) { return err(res, 'Erreur serveur', 500); }
   }

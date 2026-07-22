@@ -1,28 +1,45 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import {
   LayoutDashboard, Users, Package, ShoppingCart, FileText,
   Truck, BarChart3, Settings, Bell, LogOut, ChevronRight,
-  Menu, X, TrendingUp, UserCog, Store, AlertTriangle,
+  Menu, X, TrendingUp, UserCog, Store, AlertTriangle, Crosshair,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useAppStore, selectUnreadCount } from '@/store/appStore';
+import { useLeadsStore } from '@/store/leadsStore';
 import { formatPrice } from '@/lib/format';
 import NotificationDrawer from './NotificationDrawer';
+import ImpersonationBanner from '@/components/superadmin/ImpersonationBanner';
+import OnboardingWizard from '@/components/onboarding/OnboardingWizard';
+import { ShieldCheck, History, Store as StoreIcon, Layers } from 'lucide-react';
 
-const NAV = [
+type NavItem = {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  roles: readonly string[];
+  badge?: 'leadsNouveau';
+};
+
+const NAV: NavItem[] = [
   { to: '/dashboard',    label: 'Tableau de bord', icon: LayoutDashboard, roles: ['admin','commercial','gestionnaire','comptable','lecteur'] },
   { to: '/pos',          label: 'Caisse / POS',    icon: Store,           roles: ['admin','commercial','gestionnaire'] },
+  { to: '/leads',        label: 'Capture de Leads', icon: Crosshair,      roles: ['admin','commercial','gestionnaire'], badge: 'leadsNouveau' },
   { to: '/clients',      label: 'Clients',          icon: Users,           roles: ['admin','commercial','gestionnaire','lecteur'] },
   { to: '/produits',     label: 'Catalogue & Stock', icon: Package,        roles: ['admin','commercial','gestionnaire','lecteur'] },
+  { to: '/templates',    label: 'Templates Catalogue', icon: Layers,       roles: ['admin','gestionnaire'] },
   { to: '/commandes',    label: 'Commandes & Devis', icon: ShoppingCart,   roles: ['admin','commercial','gestionnaire','lecteur'] },
   { to: '/facturation',  label: 'Facturation',       icon: FileText,       roles: ['admin','comptable','gestionnaire','lecteur'] },
   { to: '/fournisseurs', label: 'Fournisseurs',      icon: Truck,          roles: ['admin','gestionnaire','comptable','lecteur'] },
   { to: '/rapports',     label: 'Rapports',          icon: BarChart3,      roles: ['admin','comptable','gestionnaire'] },
   { to: '/utilisateurs', label: 'Utilisateurs',      icon: UserCog,        roles: ['admin'] },
+  { to: '/configuration/abonnement', label: 'Mon Abonnement', icon: ShieldCheck, roles: ['admin'] },
+  { to: '/configuration/audit', label: 'Journal d\'Audit', icon: History,    roles: ['admin'] },
   { to: '/configuration',label: 'Configuration',     icon: Settings,       roles: ['admin'] },
-] as const;
+];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
@@ -30,8 +47,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const unread = useAppStore(selectUnreadCount);
   const commandes = useAppStore(s => s.commandes);
   const error = useAppStore(s => s.error);
+  const leadsNouveauCount = useLeadsStore(s => s.leadsNouveauCount);
+  const fetchLeadsNouveauCount = useLeadsStore(s => s.fetchLeadsNouveauCount);
   const [notifOpen, setNotifOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    fetchLeadsNouveauCount();
+    const interval = setInterval(fetchLeadsNouveauCount, 60_000);
+    return () => clearInterval(interval);
+  }, [fetchLeadsNouveauCount]);
 
   // Live CA for current month
   const caMois = (() => {
@@ -89,7 +114,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* Nav */}
         <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto custom-scrollbar">
-          {navItems.map(({ to, label, icon: Icon }) => (
+          {navItems.map(({ to, label, icon: Icon, badge }) => (
             <NavLink
               key={to}
               to={to}
@@ -111,7 +136,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   {sidebarOpen && (
                     <>
                       <span className="flex-1 truncate">{label}</span>
-                      {isActive && <ChevronRight size={12} />}
+                      {badge === 'leadsNouveau' && leadsNouveauCount > 0 && (
+                        <span
+                          className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center text-white"
+                          style={{ backgroundColor: '#f97316' }}
+                        >
+                          {leadsNouveauCount > 99 ? '99+' : leadsNouveauCount}
+                        </span>
+                      )}
+                      {isActive && !badge && <ChevronRight size={12} />}
+                      {isActive && badge && leadsNouveauCount === 0 && <ChevronRight size={12} />}
                     </>
                   )}
                 </>
@@ -174,6 +208,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* ── Main ────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
+
+        {/* Impersonation banner — shown above topbar when active */}
+        <ImpersonationBanner />
 
         {/* Topbar */}
         <header
@@ -251,6 +288,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
 
       <NotificationDrawer isOpen={notifOpen} onClose={() => setNotifOpen(false)} />
+      <OnboardingWizard />
     </div>
   );
 }

@@ -1,11 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { eq, ilike, or, desc, lte } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { getDb } from '../../db/client.js';
 import { produits, categories, fournisseurs } from '../../db/schema.js';
-import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { requireTenantAuth, handleOptions } from '../_lib/auth.js';
 import { ok, err, numericRows, numericRow, parseBody} from '../_lib/response.js';
+import { checkPlanLimit } from '../_lib/planLimits.js';
+import { logAction, AUDIT_ACTIONS } from '../_lib/auditLog.js';
 
 const emptyToUndefined = z.string().optional().transform(v => v === '' ? undefined : v);
 
@@ -32,7 +34,7 @@ const ProduitSchema = z.object({
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = await parseBody(req);
   if (handleOptions(req, res)) return;
-  const ctx = await requireAuth(req, res);
+  const ctx = await requireTenantAuth(req, res);
   if (!ctx) return;
 
   const db = getDb();
@@ -71,6 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .from(produits)
         .leftJoin(categories, eq(produits.categorieId, categories.id))
         .leftJoin(fournisseurs, eq(produits.fournisseurId, fournisseurs.id))
+        .where(eq(produits.tenantId, ctx.tenantId!))
         .orderBy(desc(produits.updatedAt));
 
       let result = rows;
@@ -92,15 +95,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!['admin', 'gestionnaire'].includes(ctx.role)) return err(res, 'Accès refusé', 403);
     const parsed = ProduitSchema.safeParse(body);
     if (!parsed.success) return err(res, 'Données invalides', 422);
+    if (!await checkPlanLimit(db, ctx.tenantId!, 'produits', res)) return;
     try {
       const [row] = await db.insert(produits).values({
         id: nanoid(),
+        tenantId: ctx.tenantId!,
         ...parsed.data,
         prixAchat:     String(parsed.data.prixAchat),
         prixVente:     String(parsed.data.prixVente),
         prixVenteGros: parsed.data.prixVenteGros != null ? String(parsed.data.prixVenteGros) : undefined,
         datePeremption:parsed.data.datePeremption ? new Date(parsed.data.datePeremption) : null,
       }).returning();
+      await logAction(
+        db,
+        ctx.tenantId!,
+        ctx.sub,
+        AUDIT_ACTIONS.PRODUIT_CREATED,
+        'produit',
+        row.id,
+        { reference: row.reference, designation: row.designation }
+      );
       return ok(res, numericRow(row), 201);
     } catch (e) {
       console.error('[produits POST]', e);

@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { getDb } from '../../db/client.js';
 import { fournisseurs } from '../../db/schema.js';
-import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { requireTenantAuth, handleOptions } from '../_lib/auth.js';
 import { ok, err, numericRows, numericRow, parseBody} from '../_lib/response.js';
 
 const FournisseurSchema = z.object({
@@ -22,14 +22,16 @@ const FournisseurSchema = z.object({
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = await parseBody(req);
   if (handleOptions(req, res)) return;
-  const ctx = await requireAuth(req, res);
+  const ctx = await requireTenantAuth(req, res);
   if (!ctx) return;
 
   const db = getDb();
 
   if (req.method === 'GET') {
     try {
-      const rows = await db.select().from(fournisseurs).orderBy(desc(fournisseurs.nom));
+      const rows = await db.select().from(fournisseurs)
+        .where(eq(fournisseurs.tenantId, ctx.tenantId!))
+        .orderBy(desc(fournisseurs.nom));
       return ok(res, numericRows(rows as Record<string, unknown>[]));
     } catch (e) { return err(res, 'Erreur serveur', 500); }
   }
@@ -43,6 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         id: nanoid(),
         ...parsed.data,
         email: parsed.data.email || null,
+        tenantId: ctx.tenantId!,
       }).returning();
       return ok(res, numericRow(row), 201);
     } catch (e) { return err(res, 'Erreur serveur', 500); }

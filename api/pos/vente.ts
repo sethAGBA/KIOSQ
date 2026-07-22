@@ -8,12 +8,12 @@
  * - Supporte le client anonyme (clientId = 'anonyme')
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { getDb } from '../../db/client.js';
 import { factures, clients, produits } from '../../db/schema.js';
-import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { requireTenantAuth, handleOptions } from '../_lib/auth.js';
 import { ok, err, numericRow, parseBody} from '../_lib/response.js';
 
 // ── Schema ────────────────────────────────────────────────────────────────────
@@ -48,7 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res)) return;
   if (req.method !== 'POST') return err(res, 'Méthode non autorisée', 405);
 
-  const ctx = await requireAuth(req, res);
+  const ctx = await requireTenantAuth(req, res);
   if (!ctx) return;
 
   // All authenticated users can make sales
@@ -71,14 +71,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let resolvedClientEmail: string | undefined;
 
     if (clientId && clientId !== 'anonyme') {
-      const [client] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
+      const [client] = await db.select().from(clients)
+        .where(and(eq(clients.id, clientId), eq(clients.tenantId, ctx.tenantId!)))
+        .limit(1);
       if (!client) return err(res, 'Client introuvable', 404);
       resolvedClientId  = client.id;
       resolvedClientNom = client.nom;
       resolvedClientEmail = client.email ?? undefined;
     } else {
       // Fallback: find or use anonyme client
-      const [anon] = await db.select().from(clients).where(eq(clients.code, 'CLI-ANON')).limit(1);
+      const [anon] = await db.select().from(clients)
+          .where(and(eq(clients.code, 'CLI-ANON'), eq(clients.tenantId, ctx.tenantId!)))
+          .limit(1);
       if (anon) {
         resolvedClientId  = anon.id;
         resolvedClientNom = anon.nom;
@@ -94,6 +98,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           soldeCredit:     '0',
           nombreCommandes: 0,
           actif:           true,
+          tenantId:        ctx.tenantId!,
         });
         resolvedClientId  = anonId;
         resolvedClientNom = 'Client anonyme';
@@ -103,7 +108,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // ── 2. Validate & deduct stock ────────────────────────────────────────────
     for (const ligne of lignes) {
       const [prod] = await db.select().from(produits)
-        .where(eq(produits.id, ligne.produitId)).limit(1);
+        .where(and(eq(produits.id, ligne.produitId), eq(produits.tenantId, ctx.tenantId!)))
+        .limit(1);
 
       if (!prod) {
         return err(res, `Produit introuvable : ${ligne.produitNom} (${ligne.produitRef})`, 404);
@@ -119,7 +125,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // ── 3. Generate ticket number ─────────────────────────────────────────────
     const year = new Date().getFullYear();
-    const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(factures);
+    const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(factures)
+      .where(eq(factures.tenantId, ctx.tenantId!));
     const numero = `TIC-${year}-${String((count ?? 0) + 1).padStart(4, '0')}`;
 
     // Calculate partial payment
@@ -171,6 +178,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ? `Montant reçu : ${montantRecu} F — Rendu : ${montantRecu - totalTTC} F`
         : undefined,
       createdBy:     ctx.sub,
+      tenantId:      ctx.tenantId!,
     }).returning();
 
     // ── 5. Update client stats (non-blocking) ─────────────────────────────────

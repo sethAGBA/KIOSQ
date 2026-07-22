@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../../db/client.js';
 import { commandes } from '../../db/schema.js';
-import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { requireTenantAuth, handleOptions } from '../_lib/auth.js';
 import { ok, err, numericRow, parseBody} from '../_lib/response.js';
 
 const PatchSchema = z.object({
@@ -17,7 +17,7 @@ const PatchSchema = z.object({
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = await parseBody(req);
   if (handleOptions(req, res)) return;
-  const ctx = await requireAuth(req, res);
+  const ctx = await requireTenantAuth(req, res);
   if (!ctx) return;
 
   const { id } = req.query as { id: string };
@@ -25,7 +25,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'GET') {
     try {
-      const [row] = await db.select().from(commandes).where(eq(commandes.id, id)).limit(1);
+      const [row] = await db.select().from(commandes)
+        .where(and(eq(commandes.id, id), eq(commandes.tenantId, ctx.tenantId!)))
+        .limit(1);
       if (!row) return err(res, 'Commande introuvable', 404);
       return ok(res, numericRow(row));
     } catch (e) { return err(res, 'Erreur serveur', 500); }
@@ -41,7 +43,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (parsed.data.adresseLivraison !== undefined) updates.adresseLivraison = parsed.data.adresseLivraison;
       if (parsed.data.dateLivraison) updates.dateLivraison = new Date(parsed.data.dateLivraison);
       if (parsed.data.acompte !== undefined) {
-        const [existing] = await db.select().from(commandes).where(eq(commandes.id, id)).limit(1);
+        const [existing] = await db.select().from(commandes)
+            .where(and(eq(commandes.id, id), eq(commandes.tenantId, ctx.tenantId!)))
+            .limit(1);
         if (existing) {
           updates.acompte = String(parsed.data.acompte);
           updates.resteAPayer = String(Number(existing.totalTTC) - parsed.data.acompte);
@@ -49,7 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       const [row] = await db.update(commandes)
         .set(updates as Parameters<ReturnType<typeof db.update>['set']>[0])
-        .where(eq(commandes.id, id))
+        .where(and(eq(commandes.id, id), eq(commandes.tenantId, ctx.tenantId!)))
         .returning();
       if (!row) return err(res, 'Commande introuvable', 404);
       return ok(res, numericRow(row));

@@ -1,12 +1,14 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import bcrypt from 'bcryptjs';
 import { getDb } from '../../db/client.js';
 import { users } from '../../db/schema.js';
-import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { requireTenantAuth, handleOptions } from '../_lib/auth.js';
 import { ok, err, parseBody} from '../_lib/response.js';
+import { checkPlanLimit } from '../_lib/planLimits.js';
+import { logAction } from '../_lib/auditLog.js';
 
 const CreateSchema = z.object({
   email:     z.string().email(),
@@ -20,7 +22,7 @@ const CreateSchema = z.object({
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = await parseBody(req);
   if (handleOptions(req, res)) return;
-  const ctx = await requireAuth(req, res);
+  const ctx = await requireTenantAuth(req, res);
   if (!ctx) return;
 
   const db = getDb();
@@ -39,7 +41,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         telephone: users.telephone,
         actif:     users.actif,
         createdAt: users.createdAt,
-      }).from(users).orderBy(desc(users.createdAt));
+      }).from(users)
+        .where(eq(users.tenantId, ctx.tenantId!))
+        .orderBy(desc(users.createdAt));
       return ok(res, rows);
     } catch (e) {
       console.error('[utilisateurs GET]', e);
@@ -52,6 +56,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (ctx.role !== 'admin') return err(res, 'Accès refusé', 403);
     const parsed = CreateSchema.safeParse(body);
     if (!parsed.success) return err(res, 'Données invalides', 422);
+    // Check plan limit before creating
+    if (!await checkPlanLimit(db, ctx.tenantId!, 'users', res)) return;
     try {
       const passwordHash = await bcrypt.hash(parsed.data.password, 10);
       const [row] = await db.insert(users).values({
@@ -63,6 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         role:         parsed.data.role,
         telephone:    parsed.data.telephone,
         actif:        true,
+        tenantId:     ctx.tenantId!,
       }).returning({
         id:        users.id,
         email:     users.email,
@@ -73,6 +80,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         actif:     users.actif,
         createdAt: users.createdAt,
       });
+      await logAction(db, ctx.tenantId!, ctx.sub, 'user.created', 'user', row.id);
       return ok(res, row, 201);
     } catch (e: any) {
       if (e?.code === '23505') return err(res, 'Email déjà utilisé', 409);

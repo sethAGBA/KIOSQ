@@ -1,12 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { desc } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { getDb } from '../../db/client.js';
 import { factures, clients, produits } from '../../db/schema.js';
-import { requireAuth, handleOptions } from '../_lib/auth.js';
+import { requireTenantAuth, handleOptions } from '../_lib/auth.js';
 import { ok, err, numericRows, numericRow, parseBody} from '../_lib/response.js';
-import { eq } from 'drizzle-orm';
+import { logAction } from '../_lib/auditLog.js';
 
 const LigneSchema = z.object({
   designation:  z.string(),
@@ -33,7 +33,7 @@ const FactureSchema = z.object({
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = await parseBody(req);
   if (handleOptions(req, res)) return;
-  const ctx = await requireAuth(req, res);
+  const ctx = await requireTenantAuth(req, res);
   if (!ctx) return;
 
   const db = getDb();
@@ -41,7 +41,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'GET') {
     try {
       const { statut } = req.query as Record<string, string>;
-      let rows = await db.select().from(factures).orderBy(desc(factures.createdAt));
+      let rows = await db.select().from(factures)
+        .where(eq(factures.tenantId, ctx.tenantId!))
+        .orderBy(desc(factures.createdAt));
       if (statut && statut !== 'tous') rows = rows.filter(r => r.statut === statut);
       return ok(res, numericRows(rows as Record<string, unknown>[]));
     } catch (e) {
@@ -58,7 +60,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!parsed.success) return err(res, 'Données invalides', 422);
 
     try {
-      const [client] = await db.select().from(clients).where(eq(clients.id, parsed.data.clientId)).limit(1);
+      const [client] = await db.select().from(clients)
+        .where(and(eq(clients.id, parsed.data.clientId), eq(clients.tenantId, ctx.tenantId!)))
+        .limit(1);
       if (!client) return err(res, 'Client introuvable', 404);
 
       // Validate stock levels first
@@ -66,7 +70,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       for (const line of parsed.data.lignes) {
         const ref = line.designation.split(' — ')[0]?.trim();
         if (ref) {
-          const [prod] = await db.select().from(produits).where(eq(produits.reference, ref)).limit(1);
+          const [prod] = await db.select().from(produits)
+            .where(and(eq(produits.reference, ref), eq(produits.tenantId, ctx.tenantId!)))
+            .limit(1);
           if (!prod) {
             return err(res, `Produit avec la référence ${ref} introuvable`, 404);
           }
@@ -81,10 +87,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       for (const update of productUpdates) {
         await db.update(produits)
           .set({ stockActuel: update.newStock, updatedAt: new Date() })
-          .where(eq(produits.id, update.prodId));
+          .where(and(eq(produits.id, update.prodId), eq(produits.tenantId, ctx.tenantId!)));
       }
 
-      const all = await db.select().from(factures);
+      const all = await db.select().from(factures).where(eq(factures.tenantId, ctx.tenantId!));
       const year = new Date().getFullYear();
       const numero = `FAC-${year}-${String(all.length + 1).padStart(3, '0')}`;
 
@@ -108,8 +114,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         dateFacture:   parsed.data.dateFacture ? new Date(parsed.data.dateFacture) : new Date(),
         dateEcheance:  new Date(parsed.data.dateEcheance),
         notes:         parsed.data.notes,
+        tenantId:      ctx.tenantId!,
         createdBy:     ctx.sub,
       }).returning();
+
+      await logAction(db, ctx.tenantId!, ctx.sub, 'facture.created', 'facture', row.id);
+
       return ok(res, numericRow(row), 201);
     } catch (e) {
       console.error('[factures POST]', e);

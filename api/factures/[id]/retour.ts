@@ -1,10 +1,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../../../db/client.js';
 import { factures, produits } from '../../../db/schema.js';
-import { requireAuth, handleOptions } from '../../_lib/auth.js';
+import { requireTenantAuth, handleOptions } from '../../_lib/auth.js';
 import { ok, err, numericRow, parseBody} from '../../_lib/response.js';
+import { logAction } from '../../_lib/auditLog.js';
 
 // ── Validation ────────────────────────────────────────────────────────────────
 const RetourLineSchema = z.object({
@@ -27,7 +28,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Only POST allowed on this sub-route
   if (req.method !== 'POST') return err(res, 'Méthode non autorisée', 405);
 
-  const ctx = await requireAuth(req, res);
+  const ctx = await requireTenantAuth(req, res);
   if (!ctx) return;
 
   // Only admin/gestionnaire may process returns
@@ -47,8 +48,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { lignesRetour, motif, remboursementMode } = parsed.data;
 
   try {
-    // ── 1. Fetch the original facture ─────────────────────────────────────────
-    const [facture] = await db.select().from(factures).where(eq(factures.id, id)).limit(1);
+    // ── 1. Fetch the original facture (scoped to tenant) ─────────────────────
+    const [facture] = await db.select().from(factures)
+      .where(and(eq(factures.id, id), eq(factures.tenantId, ctx.tenantId!)))
+      .limit(1);
     if (!facture) return err(res, 'Facture introuvable', 404);
 
     if (facture.statut === 'annulee') {
@@ -56,34 +59,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // ── 2. Restore stock for each returned line using SQL arithmetic ──────────
-    // Calculate total amount being returned
     let montantRetour = 0;
 
     for (const ligne of lignesRetour) {
       const ref = ligne.designation.split(' — ')[0]?.trim();
       if (!ref) continue;
 
-      const [prod] = await db.select().from(produits).where(eq(produits.reference, ref)).limit(1);
+      const [prod] = await db.select().from(produits)
+        .where(and(eq(produits.reference, ref), eq(produits.tenantId, ctx.tenantId!)))
+        .limit(1);
       if (prod) {
-        // Use SQL arithmetic to avoid JS type coercion issues with Postgres numeric strings
         await db.update(produits)
           .set({
             stockActuel: sql`${produits.stockActuel} + ${ligne.quantite}`,
             updatedAt:   new Date(),
           })
-          .where(eq(produits.id, prod.id));
+          .where(and(eq(produits.id, prod.id), eq(produits.tenantId, ctx.tenantId!)));
       }
 
       montantRetour += ligne.quantite * ligne.prixUnitaire;
     }
 
     // ── 3. Compute new financial values ───────────────────────────────────────
-    const ancienTotalTTC   = Number(facture.totalTTC);
+    const ancienTotalTTC    = Number(facture.totalTTC);
     const ancienMontantPaye = Number(facture.montantPaye);
-    const nouveauTotalTTC  = Math.max(0, ancienTotalTTC - montantRetour);
+    const nouveauTotalTTC   = Math.max(0, ancienTotalTTC - montantRetour);
     const nouveauMontantPaye = Math.max(0, ancienMontantPaye - montantRetour);
     const nouveauResteAPayer = Math.max(0, nouveauTotalTTC - nouveauMontantPaye);
-    const nouveauTotalHT   = Math.max(0, Number(facture.totalHT) - montantRetour);
+    const nouveauTotalHT    = Math.max(0, Number(facture.totalHT) - montantRetour);
 
     // Determine new status based on remaining amount
     let nouveauStatut: 'annulee' | 'payee' | 'partielle' | 'en_retard' | 'envoyee' | 'brouillon' = facture.statut;
@@ -116,8 +119,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         statut:       nouveauStatut,
         updatedAt:    new Date(),
       })
-      .where(eq(factures.id, id))
+      .where(and(eq(factures.id, id), eq(factures.tenantId, ctx.tenantId!)))
       .returning();
+
+    await logAction(db, ctx.tenantId!, ctx.sub, 'facture.updated', 'facture', id);
 
     return ok(res, numericRow(updated));
 

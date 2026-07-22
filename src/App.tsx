@@ -1,9 +1,20 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+
+// Tenant
+import { TenantProvider } from '@/contexts/TenantContext';
 
 // Auth
 import LoginPage from '@/pages/LoginPage';
 import AuthGuard from '@/components/auth/AuthGuard';
+import SuperadminGuard from '@/components/auth/SuperadminGuard';
+
+// Superadmin pages (lazy — loaded only when accessed by a superadmin)
+const DashboardSuperadminPage = lazy(() => import('@/pages/superadmin/DashboardSuperadminPage'));
+const BoutiquesPage            = lazy(() => import('@/pages/superadmin/BoutiquesPage'));
+const CreerBoutiquePage        = lazy(() => import('@/pages/superadmin/CreerBoutiquePage'));
+const BoutiqueDetailPage       = lazy(() => import('@/pages/superadmin/BoutiqueDetailPage'));
 
 // Pages
 import DashboardPage from '@/pages/DashboardPage';
@@ -21,12 +32,28 @@ import CommandeFournisseurDetailPage from '@/pages/fournisseurs/CommandeFourniss
 import RapportsPage from '@/pages/rapports/RapportsPage';
 import UtilisateursPage from '@/pages/utilisateurs/UtilisateursPage';
 import ConfigurationPage from '@/pages/configuration/ConfigurationPage';
+import AbonnementPage from '@/pages/configuration/AbonnementPage';
+import AuditPage from '@/pages/configuration/AuditPage';
+import TemplatesPage from '@/pages/templates/TemplatesPage';
+import ExporterCataloguePage from '@/pages/templates/ExporterCataloguePage';
 import EtiquettesPage from '@/pages/produits/EtiquettesPage';
 import POSPage from '@/pages/pos/POSPage';
 import HistoriqueVentesPage from '@/pages/pos/HistoriqueVentesPage';
+import LeadsPage from '@/pages/leads/LeadsPage';
+import LeadDetailPage from '@/pages/leads/LeadDetailPage';
+
+// Lightweight loading fallback used for lazy superadmin pages
+function SuperadminFallback() {
+  return (
+    <div className="flex h-full items-center justify-center text-sm text-gray-400">
+      Chargement…
+    </div>
+  );
+}
 
 export default function App() {
   return (
+    <TenantProvider>
     <BrowserRouter>
       <Toaster
         position="top-right"
@@ -43,6 +70,30 @@ export default function App() {
       <Routes>
         {/* Public */}
         <Route path="/login" element={<LoginPage />} />
+
+        {/* Superadmin backoffice — guarded by SuperadminGuard + SuperadminLayout */}
+        <Route path="/superadmin" element={<SuperadminGuard />}>
+          <Route index element={
+            <Suspense fallback={<SuperadminFallback />}>
+              <DashboardSuperadminPage />
+            </Suspense>
+          } />
+          <Route path="boutiques" element={
+            <Suspense fallback={<SuperadminFallback />}>
+              <BoutiquesPage />
+            </Suspense>
+          } />
+          <Route path="boutiques/new" element={
+            <Suspense fallback={<SuperadminFallback />}>
+              <CreerBoutiquePage />
+            </Suspense>
+          } />
+          <Route path="boutiques/:id" element={
+            <Suspense fallback={<SuperadminFallback />}>
+              <BoutiqueDetailPage />
+            </Suspense>
+          } />
+        </Route>
 
         {/* Protected — wrapped in AuthGuard + AppLayout */}
         <Route element={<AuthGuard />}>
@@ -75,17 +126,28 @@ export default function App() {
           <Route path="/pos" element={<POSPage />} />
           <Route path="/pos/historique" element={<HistoriqueVentesPage />} />
 
+          {/* Leads */}
+          <Route path="/leads" element={<LeadsPage />} />
+          <Route path="/leads/:id" element={<LeadDetailPage />} />
+
           {/* Rapports */}
           <Route path="/rapports" element={<RapportsPage />} />
 
-          {/* Admin */}
+          {/* Admin & Config */}
           <Route path="/utilisateurs" element={<UtilisateursPage />} />
           <Route path="/configuration" element={<ConfigurationPage />} />
+          <Route path="/configuration/abonnement" element={<AbonnementPage />} />
+          <Route path="/configuration/audit" element={<AuditPage />} />
+
+          {/* Templates */}
+          <Route path="/templates" element={<TemplatesPage />} />
+          <Route path="/templates/exporter" element={<ExporterCataloguePage />} />
         </Route>
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
+    </TenantProvider>
   );
 }

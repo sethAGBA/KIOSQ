@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { eq, asc } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../../../db/client.js';
 import { fournisseurs, commandesFournisseurs } from '../../../db/schema.js';
-import { requireAuth, handleOptions } from '../../_lib/auth.js';
+import { requireTenantAuth, handleOptions } from '../../_lib/auth.js';
 import { ok, err, numericRow, parseBody } from '../../_lib/response.js';
 
 const ReglementSchema = z.object({
@@ -16,7 +16,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleOptions(req, res)) return;
   if (req.method !== 'POST') return err(res, 'Méthode non autorisée', 405);
 
-  const ctx = await requireAuth(req, res);
+  const ctx = await requireTenantAuth(req, res);
   if (!ctx) return;
   if (!['admin', 'gestionnaire', 'comptable'].includes(ctx.role)) return err(res, 'Accès refusé', 403);
 
@@ -28,13 +28,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let montantRestant = parsed.data.montant;
 
   try {
-    const [fournisseur] = await db.select().from(fournisseurs).where(eq(fournisseurs.id, fournisseurId)).limit(1);
+    const [fournisseur] = await db.select().from(fournisseurs)
+      .where(and(eq(fournisseurs.id, fournisseurId), eq(fournisseurs.tenantId, ctx.tenantId!)))
+      .limit(1);
     if (!fournisseur) return err(res, 'Fournisseur introuvable', 404);
 
     // Get open orders (statutPaiement != 'paye'), oldest first
     const openOrders = await db.select()
       .from(commandesFournisseurs)
-      .where(eq(commandesFournisseurs.fournisseurId, fournisseurId))
+      .where(and(eq(commandesFournisseurs.fournisseurId, fournisseurId), eq(commandesFournisseurs.tenantId, ctx.tenantId!)))
       .orderBy(asc(commandesFournisseurs.createdAt));
 
     const ordersToPay = openOrders.filter(o => o.statutPaiement !== 'paye' && parseFloat(o.resteAPayer) > 0);
@@ -82,7 +84,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         soldeDette: String(nouveauSolde),
         updatedAt: new Date()
       })
-      .where(eq(fournisseurs.id, fournisseurId))
+      .where(and(eq(fournisseurs.id, fournisseurId), eq(fournisseurs.tenantId, ctx.tenantId!)))
       .returning();
 
     return ok(res, {

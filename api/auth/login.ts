@@ -6,6 +6,7 @@ import { getDb } from '../../db/client.js';
 import { users } from '../../db/schema.js';
 import { signToken, setAuthCookie, handleOptions } from '../_lib/auth.js';
 import { ok, err, parseBody } from '../_lib/response.js';
+import { logAction, AUDIT_ACTIONS } from '../_lib/auditLog.js';
 
 export const config = { api: { bodyParser: true } };
 
@@ -37,22 +38,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!valid) return err(res, 'Identifiants incorrects', 401);
 
     const token = await signToken({
-      sub:    user.id,
-      email:  user.email,
-      role:   user.role,
-      nom:    user.nom,
-      prenom: user.prenom,
+      sub:      user.id,
+      email:    user.email,
+      role:     user.role,
+      nom:      user.nom,
+      prenom:   user.prenom,
+      tenantId: user.tenantId ?? null,
     });
 
     setAuthCookie(res, token);
 
+    // Enregistrer l'audit log uniquement pour les utilisateurs avec tenant (pas les superadmins)
+    if (user.tenantId) {
+      const ip = req.headers['x-forwarded-for'] as string | undefined;
+      await logAction(
+        db,
+        user.tenantId,
+        user.id,
+        AUDIT_ACTIONS.USER_LOGIN,
+        'user',
+        user.id,
+        undefined,
+        ip
+      );
+    }
+
     return ok(res, {
-      id:     user.id,
-      email:  user.email,
-      role:   user.role,
-      nom:    user.nom,
-      prenom: user.prenom,
-      actif:  user.actif,
+      id:                user.id,
+      email:             user.email,
+      role:              user.role,
+      nom:               user.nom,
+      prenom:            user.prenom,
+      actif:             user.actif,
+      tenantId:          user.tenantId ?? null,
+      premiereConnexion: user.premiereConnexion,
+      onboardingStep:    user.onboardingStep,
     });
   } catch (e) {
     console.error('[login]', e);
