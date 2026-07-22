@@ -176,17 +176,12 @@ export async function requireTenantAuth(
     return null;
   }
 
-  // 2. Require tenantId in JWT
-  if (!payload.tenantId) {
-    res.status(401).json({ error: 'Non authentifié' });
-    return null;
-  }
+  // 2. Require tenantId in JWT or fallback to X-Tenant-ID header / default demo tenant
+  const headerTenantId = req.headers['x-tenant-id'] as string | undefined;
+  const tenantId = payload.tenantId || headerTenantId || 'tenant_demo';
 
-  const tenantId = payload.tenantId;
-
-  // 3. Verify X-Tenant-ID header consistency (if present)
-  const headerTenantId = req.headers['x-tenant-id'];
-  if (headerTenantId && headerTenantId !== tenantId) {
+  // 3. Verify X-Tenant-ID header consistency (if present and payload has explicit tenantId)
+  if (payload.tenantId && headerTenantId && headerTenantId !== payload.tenantId) {
     res.status(403).json({ error: 'Incohérence de tenant' });
     return null;
   }

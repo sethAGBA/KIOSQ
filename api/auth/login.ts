@@ -37,13 +37,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) return err(res, 'Identifiants incorrects', 401);
 
+    const tenantId = user.tenantId ?? (user.role === 'superadmin' ? null : 'tenant_demo');
+
     const token = await signToken({
       sub:      user.id,
       email:    user.email,
       role:     user.role,
       nom:      user.nom,
       prenom:   user.prenom,
-      tenantId: user.tenantId ?? null,
+      tenantId,
     });
 
     setAuthCookie(res, token);
