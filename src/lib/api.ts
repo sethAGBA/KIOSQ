@@ -38,10 +38,15 @@ async function request<T>(
     },
   });
 
-  const json = (await res.json()) as ApiResponse<T>;
+  let json: ApiResponse<T> | null = null;
+  try {
+    json = (await res.json()) as ApiResponse<T>;
+  } catch {
+    // Response is non-JSON (e.g., 502/504 HTML error from Vercel proxy)
+  }
 
-  if (!res.ok || !json.ok) {
-    const msg = (!json.ok && 'error' in json) ? json.error : `HTTP ${res.status}`;
+  if (!res.ok || !json || !json.ok) {
+    const msg = (json && !json.ok && 'error' in json) ? json.error : `HTTP ${res.status}`;
     throw new Error(msg);
   }
 
