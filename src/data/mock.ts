@@ -6,6 +6,11 @@ import type {
 // ── Utilisateurs ──────────────────────────────────────────
 export const mockUsers: AppUser[] = [
   {
+    id: 'su1', email: 'superadmin@kiosq.com', nom: 'Super', prenom: 'Admin',
+    role: 'superadmin', actif: true, telephone: '+221 77 000 00 00',
+    createdAt: new Date('2024-01-01'),
+  },
+  {
     id: 'u1', email: 'admin@kiosq.com', nom: 'Diallo', prenom: 'Mamadou',
     role: 'admin', actif: true, telephone: '+221 77 000 00 01',
     createdAt: new Date('2024-01-01'),

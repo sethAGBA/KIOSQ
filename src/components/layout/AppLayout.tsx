@@ -80,7 +80,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     navigate('/login');
   };
 
-  const navItems = NAV.filter((n) => user && n.roles.includes(user.role as never));
+  const navItems = NAV.filter((n) => user && (user.role === 'superadmin' || n.roles.includes(user.role as never)));
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'var(--color-cream)' }}>
