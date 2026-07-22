@@ -16,6 +16,9 @@ async function request<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('kiosq_jwt') : null;
+  const authHeader: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+
   // Inject X-Tenant-ID at request time so it always reflects the current tenant,
   // even if the store was populated after module load. Omit the header for
   // superadmin sessions where getTenantId() returns null.
@@ -29,6 +32,7 @@ async function request<T>(
     credentials: 'include', // send httpOnly cookie
     headers: {
       'Content-Type': 'application/json',
+      ...authHeader,
       ...tenantHeader,
       ...options.headers,
     },
@@ -56,7 +60,7 @@ export const api = { get, post, patch, del };
 // ── Auth ──────────────────────────────────────────────────
 export const authApi = {
   login:  (email: string, password: string) =>
-    post<{ id: string; email: string; role: string; nom: string; prenom: string; actif: boolean }>(
+    post<{ token?: string; id: string; email: string; role: string; nom: string; prenom: string; actif: boolean }>(
       '/api/auth/login', { email, password }
     ),
   me:     () => get<{ id: string; email: string; role: string; nom: string; prenom: string; actif: boolean }>('/api/auth/me'),

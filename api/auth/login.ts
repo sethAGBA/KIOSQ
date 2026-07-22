@@ -64,6 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     return ok(res, {
+      token,
       id:                user.id,
       email:             user.email,
       role:              user.role,

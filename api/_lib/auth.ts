@@ -45,11 +45,12 @@ export async function verifyToken(token: string) {
 
 // ── Cookie helpers ────────────────────────────────────────
 export function setAuthCookie(res: VercelResponse, token: string) {
+  // Add Secure flag when running on Vercel (production/preview) or when
+  // explicitly in production mode. Vercel always sets VERCEL=1.
+  const isSecure = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
   res.setHeader(
     'Set-Cookie',
-    `${COOKIE_NAME}=${token}; HttpOnly; Path=/; Max-Age=${MAX_AGE}; SameSite=Lax${
-      process.env.NODE_ENV === 'production' ? '; Secure' : ''
-    }`
+    `${COOKIE_NAME}=${token}; HttpOnly; Path=/; Max-Age=${MAX_AGE}; SameSite=Lax${isSecure ? '; Secure' : ''}`
   );
 }
 
@@ -261,15 +262,16 @@ export async function requireSuperadmin(
 }
 
 // ── CORS + method helpers ─────────────────────────────────
-export function setCors(res: VercelResponse) {
+export function setCors(res: VercelResponse, req?: VercelRequest) {
+  const origin = req?.headers.origin || process.env.ALLOWED_ORIGIN;
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN ?? '*');
+  res.setHeader('Access-Control-Allow-Origin', origin || '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Tenant-ID');
 }
 
 export function handleOptions(req: VercelRequest, res: VercelResponse): boolean {
-  setCors(res);
+  setCors(res, req);
   if (req.method === 'OPTIONS') {
     res.status(204).end();
     return true;

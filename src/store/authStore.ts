@@ -25,6 +25,9 @@ export const useAuthStore = create<AuthState>()(
         if (USE_API) {
           // Real API login
           const data = await authApi.login(email, password);
+          if (data.token) {
+            localStorage.setItem('kiosq_jwt', data.token);
+          }
           const user: AppUser = {
             id:        data.id,
             email:     data.email,
@@ -47,6 +50,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: async () => {
+        localStorage.removeItem('kiosq_jwt');
         if (USE_API) {
           try { await authApi.logout(); } catch { /* ignore */ }
         }
