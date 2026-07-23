@@ -22,4 +22,19 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        advancedChunks: {
+          groups: [
+            { name: 'vendor-react',  test: /node_modules\/(react|react-dom|react-router-dom|react-is)\// },
+            { name: 'vendor-charts', test: /node_modules\/recharts\// },
+            { name: 'vendor-pdf',    test: /node_modules\/(jspdf|html2canvas)\// },
+            { name: 'vendor-xlsx',   test: /node_modules\/xlsx\// },
+            { name: 'vendor-misc',   test: /node_modules\/(clsx|date-fns|react-hot-toast|zustand|lucide-react|nanoid)\// },
+          ],
+        },
+      },
+    },
+  },
 })

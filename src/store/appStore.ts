@@ -31,6 +31,7 @@ interface AppState {
   fournisseurs: Fournisseur[];
   commandesFournisseurs: CommandeFournisseur[];
   magasins: Magasin[];
+  selectedMagasinId: string | null;
   notifications: Notification[];
   categories: Categorie[];
   loading: LoadingState;
@@ -85,9 +86,10 @@ interface AppState {
   deleteCategorie: (id: string) => void;
 
   // ── Magasins ──────────────────────────────────────────
-  addMagasin:    (m: Magasin) => void;
-  updateMagasin: (id: string, m: Partial<Magasin>) => void;
-  deleteMagasin: (id: string) => void;
+  addMagasin:         (m: Magasin) => void;
+  updateMagasin:      (id: string, m: Partial<Magasin>) => void;
+  deleteMagasin:      (id: string) => void;
+  setSelectedMagasin: (id: string | null) => void;
 
   // ── Notifications ─────────────────────────────────────
   markNotificationRead:    (id: string) => void;
@@ -103,6 +105,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   fournisseurs:          USE_API ? [] : mockFournisseurs,
   commandesFournisseurs: USE_API ? [] : mockCommandesFournisseurs,
   magasins:              [],
+  selectedMagasinId:     null,
   notifications:         USE_API ? [] : mockNotifications,
   categories:            USE_API ? [] : mockCategories,
   loading: {
@@ -453,6 +456,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     set(s => ({ magasins: s.magasins.map(x => x.id === id ? { ...x, ...m } : x) })),
   deleteMagasin: (id) =>
     set(s => ({ magasins: s.magasins.filter(x => x.id !== id) })),
+  setSelectedMagasin: (id) => set({ selectedMagasinId: id }),
 
   // ── Notifications ─────────────────────────────────────
   markNotificationRead: (id) => {

@@ -37,20 +37,22 @@ function BarcodeLabel({ produit, nomEntreprise }: { produit: Produit; nomEntrepr
   }, [barcodeValue]);
 
   return (
-    <div
-      className="flex flex-col items-center justify-between bg-white border border-gray-300 rounded p-2"
-      style={{ width: '62mm', height: '38mm', boxSizing: 'border-box' }}
-    >
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'space-between', backgroundColor: 'white',
+      border: '1px solid #d1d5db', borderRadius: '4px', padding: '4px',
+      width: '62mm', height: '38mm', boxSizing: 'border-box',
+    }}>
       {nomEntreprise && (
-        <p className="text-[9px] font-black uppercase tracking-wide text-center w-full truncate">
+        <p style={{ fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center', width: '100%', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', margin: 0 }}>
           {nomEntreprise}
         </p>
       )}
-      <p className="text-[10px] font-bold text-center line-clamp-2 w-full leading-tight">
+      <p style={{ fontSize: '10px', fontWeight: 700, textAlign: 'center', width: '100%', lineHeight: 1.2, margin: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
         {produit.designation}
       </p>
-      <svg ref={svgRef} className="max-w-full" />
-      <p className="text-sm font-black">{formatPrice(produit.prixVente)}</p>
+      <svg ref={svgRef} style={{ maxWidth: '100%' }} />
+      <p style={{ fontSize: '13px', fontWeight: 900, margin: 0 }}>{formatPrice(produit.prixVente)}</p>
     </div>
   );
 }
@@ -339,7 +341,7 @@ export default function EtiquettesPage() {
 
       {/* ── Zone d'impression masquée ── */}
       <div className="fixed -left-[9999px] top-0 pointer-events-none">
-        <div ref={printRef} style={{ padding: '10mm' }}>
+        <div ref={printRef} style={{ padding: '10mm', fontFamily: 'sans-serif' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4mm' }}>
             {selectedItems.flatMap((item) =>
               Array.from({ length: item.quantite }).map((_, i) => (
@@ -353,15 +355,6 @@ export default function EtiquettesPage() {
           </div>
         </div>
       </div>
-
-      {/* Styles impression */}
-      <style>{`
-        @media print {
-          @page { size: A4; margin: 10mm; }
-          body * { visibility: hidden; }
-          .print-zone, .print-zone * { visibility: visible; }
-        }
-      `}</style>
     </div>
   );
 }

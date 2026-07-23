@@ -359,6 +359,66 @@ export default function POSPage() {
     toast('Panier supprimé', { icon: '🗑️' });
   };
 
+  // ── Charger une commande depuis la file d'attente caisse ──
+  const chargerCommandeEnCaisse = async (cmd: typeof commandes[number]) => {
+    // Si panier actif non vide, le garer en attente
+    if (cart.length > 0) {
+      const label = selectedClient?.nom ?? commandeSource?.numero ?? `Panier #${waitingQueue.length + 1}`;
+      setWaitingQueue(prev => [...prev, {
+        id: `wait-${Date.now()}`,
+        label,
+        cart,
+        selectedClient,
+        remiseTTC,
+        remisePercent,
+        appliquerTVA,
+        commandeSource,
+        savedAt: new Date(),
+      }]);
+    }
+
+    // Verrouiller la commande côté serveur
+    try {
+      if (USE_API) {
+        const updated = await commandesApi.update(cmd.id, { statut: 'en_caisse' as any });
+        updateCommande(cmd.id, updated);
+      } else {
+        updateCommande(cmd.id, { statut: 'en_caisse' as any, updatedAt: new Date() });
+      }
+    } catch { /* non bloquant */ }
+
+    // Construire le panier depuis les lignes de la commande
+    const lignesCart: LigneCart[] = (cmd.lignes as any[]).map((l: any) => {
+      const produit = produits.find(p => p.id === l.produitId);
+      return {
+        produitId:     l.produitId,
+        produitRef:    l.produitRef,
+        produitNom:    l.produitNom,
+        prixUnitaire:  l.prixUnitaire,
+        prixVente:     produit?.prixVente ?? l.prixUnitaire,
+        prixVenteGros: produit?.prixVenteGros,
+        typePrix:      'detail' as const,
+        quantite:      l.quantite,
+        remise:        l.remise ?? 0,
+        total:         l.total,
+      };
+    });
+
+    setCart(lignesCart);
+
+    const client = clients.find(c => c.id === cmd.clientId);
+    setSelectedClient(client ?? null);
+    setClientSearch('');
+
+    setRemisePercent(Number(cmd.remiseGlobale) > 0 ? Number(cmd.remiseGlobale) : 0);
+    setRemiseTTC(0);
+    setAppliquerTVA(Number(cmd.tva) > 0);
+    setCommandeSource({ id: cmd.id, numero: cmd.numero });
+    setMontantRecu(0);
+    setShowCmdQueue(false);
+    toast.success(`Commande ${cmd.numero} chargée en caisse`);
+  };
+
   // ── Encaisser ─────────────────────────────────────────────
   const handleEncaisser = async () => {
     if (cart.length === 0) { toast.error('Panier vide'); return; }
@@ -521,6 +581,22 @@ export default function POSPage() {
                 Vente en Gros
               </button>
             </div>
+            {/* Bouton commandes en attente de caisse */}
+            <button
+              onClick={() => setShowCmdQueue(true)}
+              className="btn-secondary relative text-xs flex items-center gap-1.5 py-2 px-3 shadow-sm"
+            >
+              <ClipboardList size={14} />
+              Commandes
+              {commandesEnAttenteCaisse.length > 0 && (
+                <span
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full text-white text-[10px] font-bold flex items-center justify-center"
+                  style={{ backgroundColor: 'var(--color-gold)' }}
+                >
+                  {commandesEnAttenteCaisse.length}
+                </span>
+              )}
+            </button>
             <button
               onClick={() => navigate('/pos/historique')}
               className="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3 shadow-sm"
@@ -1084,6 +1160,112 @@ export default function POSPage() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ══ Modal commandes en attente de caisse ══ */}
+      {showCmdQueue && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setShowCmdQueue(false)}>
+          <div
+            className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-5 border-b" style={{ borderColor: 'var(--color-cream-dark)' }}>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'var(--color-gold-pale)', color: 'var(--color-gold)' }}>
+                  <ClipboardList size={18} />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg" style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
+                    Commandes en attente
+                  </h3>
+                  <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+                    {commandesEnAttenteCaisse.length === 0
+                      ? 'Aucune commande à encaisser'
+                      : `${commandesEnAttenteCaisse.length} commande${commandesEnAttenteCaisse.length > 1 ? 's' : ''} prête${commandesEnAttenteCaisse.length > 1 ? 's' : ''} à encaisser`}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setShowCmdQueue(false)} style={{ color: 'var(--color-ink-muted)' }}><X size={18} /></button>
+            </div>
+
+            {/* Liste */}
+            <div className="divide-y max-h-[60vh] overflow-y-auto" style={{ borderColor: 'var(--color-cream-dark)' }}>
+              {commandesEnAttenteCaisse.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-14 gap-2">
+                  <ClipboardList size={36} style={{ color: 'var(--color-ink-muted)', opacity: 0.3 }} />
+                  <p className="text-sm font-medium" style={{ color: 'var(--color-ink-muted)' }}>Aucune commande en attente</p>
+                  <p className="text-xs text-center px-8" style={{ color: 'var(--color-ink-muted)' }}>
+                    Les commandes confirmées ou envoyées en caisse apparaissent ici
+                  </p>
+                </div>
+              ) : commandesEnAttenteCaisse.map(cmd => {
+                const isEnCaisse = cmd.statut === 'en_caisse';
+                const isActive = commandeSource?.id === cmd.id;
+                return (
+                  <div
+                    key={cmd.id}
+                    className={clsx(
+                      'flex items-center gap-4 px-6 py-4 transition-colors',
+                      isActive ? 'bg-amber-50' : 'hover:bg-gray-50'
+                    )}
+                  >
+                    {/* Icône initiale */}
+                    <div
+                      className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center font-bold text-sm text-white"
+                      style={{ backgroundColor: isEnCaisse ? '#d97706' : 'var(--color-gold)' }}
+                    >
+                      {cmd.clientNom.charAt(0).toUpperCase()}
+                    </div>
+
+                    {/* Infos */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-sm" style={{ color: 'var(--color-ink)' }}>{cmd.clientNom}</p>
+                        <span
+                          className={clsx('text-[10px] font-mono px-1.5 py-0.5 rounded font-medium')}
+                          style={{
+                            backgroundColor: isEnCaisse ? '#fef3c7' : 'var(--color-gold-pale)',
+                            color: isEnCaisse ? '#92400e' : 'var(--color-gold)',
+                          }}
+                        >
+                          {cmd.numero}
+                        </span>
+                        {isEnCaisse && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-amber-100 text-amber-700">
+                            🔒 en caisse
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
+                        {(cmd.lignes as any[]).length} ligne{(cmd.lignes as any[]).length > 1 ? 's' : ''}
+                        {' · '}
+                        <span className="font-semibold" style={{ color: 'var(--color-gold)' }}>
+                          {formatPrice(Number(cmd.totalTTC))}
+                        </span>
+                      </p>
+                    </div>
+
+                    {/* Bouton charger */}
+                    {isActive ? (
+                      <span className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ backgroundColor: 'var(--color-gold-pale)', color: 'var(--color-gold)' }}>
+                        En cours
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => chargerCommandeEnCaisse(cmd)}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-colors shrink-0"
+                        style={{ backgroundColor: 'var(--color-gold)' }}
+                      >
+                        Charger <ChevronRight size={12} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

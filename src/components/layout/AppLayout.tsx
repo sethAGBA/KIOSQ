@@ -5,6 +5,7 @@ import {
   LayoutDashboard, Users, Package, ShoppingCart, FileText,
   Truck, BarChart3, Settings, Bell, LogOut, ChevronRight,
   Menu, X, TrendingUp, UserCog, Store, AlertTriangle, Crosshair, Sparkles, RefreshCw, Calculator, RotateCcw,
+  ChevronDown,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
@@ -89,17 +90,29 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const unread = useAppStore(selectUnreadCount);
   const commandes = useAppStore(s => s.commandes);
   const error = useAppStore(s => s.error);
+  const magasins = useAppStore(s => s.magasins);
+  const selectedMagasinId = useAppStore(s => s.selectedMagasinId);
+  const setSelectedMagasin = useAppStore(s => s.setSelectedMagasin);
   const leadsNouveauCount = useLeadsStore(s => s.leadsNouveauCount);
   const fetchLeadsNouveauCount = useLeadsStore(s => s.fetchLeadsNouveauCount);
   const [notifOpen, setNotifOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [magasinDropOpen, setMagasinDropOpen] = useState(false);
 
   useEffect(() => {
     fetchLeadsNouveauCount();
     const interval = setInterval(fetchLeadsNouveauCount, 60_000);
     return () => clearInterval(interval);
   }, [fetchLeadsNouveauCount]);
+
+  // Fermer le dropdown magasin au clic extérieur
+  useEffect(() => {
+    if (!magasinDropOpen) return;
+    const handler = () => setMagasinDropOpen(false);
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [magasinDropOpen]);
 
   // Live CA for current month
   const caMois = (() => {
@@ -211,6 +224,85 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           ))}
         </nav>
+
+        {/* Sélecteur de magasin */}
+        {magasins.length > 0 && (
+          <div className="px-3 pb-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+            {sidebarOpen ? (
+              <div className="relative">
+                <p className="text-[9px] font-black uppercase tracking-[0.15em] px-1 mb-1.5" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                  Magasin
+                </p>
+                <button
+                  onClick={() => setMagasinDropOpen(v => !v)}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all"
+                  style={{
+                    backgroundColor: 'rgba(255,255,255,0.07)',
+                    color: selectedMagasinId ? 'var(--color-gold)' : 'rgba(255,255,255,0.55)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                  }}
+                >
+                  <Store size={13} className="shrink-0" />
+                  <span className="flex-1 text-left truncate">
+                    {selectedMagasinId
+                      ? magasins.find(m => m.id === selectedMagasinId)?.nom ?? 'Magasin'
+                      : 'Tous les magasins'}
+                  </span>
+                  <ChevronDown size={12} className={clsx('shrink-0 transition-transform', magasinDropOpen && 'rotate-180')} />
+                </button>
+
+                {magasinDropOpen && (
+                  <div
+                    className="absolute left-0 right-0 mt-1 rounded-xl overflow-hidden shadow-2xl z-50"
+                    style={{ backgroundColor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.12)' }}
+                  >
+                    <button
+                      onClick={() => { setSelectedMagasin(null); setMagasinDropOpen(false); }}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-xs transition-colors"
+                      style={{
+                        color: !selectedMagasinId ? 'var(--color-gold)' : 'rgba(255,255,255,0.6)',
+                        backgroundColor: !selectedMagasinId ? 'rgba(184,147,90,0.1)' : 'transparent',
+                      }}
+                    >
+                      <Store size={12} />
+                      Tous les magasins
+                    </button>
+                    {magasins.filter(m => m.actif).map(m => (
+                      <button
+                        key={m.id}
+                        onClick={() => { setSelectedMagasin(m.id); setMagasinDropOpen(false); }}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-xs transition-colors"
+                        style={{
+                          color: selectedMagasinId === m.id ? 'var(--color-gold)' : 'rgba(255,255,255,0.6)',
+                          backgroundColor: selectedMagasinId === m.id ? 'rgba(184,147,90,0.1)' : 'transparent',
+                        }}
+                      >
+                        <Store size={12} />
+                        <span className="truncate">{m.nom}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Sidebar collapsed : icône seule avec point si filtre actif */
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="relative w-full flex items-center justify-center py-2 rounded-lg transition-colors"
+                style={{ color: selectedMagasinId ? 'var(--color-gold)' : 'rgba(255,255,255,0.3)' }}
+                title={selectedMagasinId ? magasins.find(m => m.id === selectedMagasinId)?.nom : 'Tous les magasins'}
+              >
+                <Store size={16} />
+                {selectedMagasinId && (
+                  <span
+                    className="absolute top-1 right-1 w-2 h-2 rounded-full"
+                    style={{ backgroundColor: 'var(--color-gold)' }}
+                  />
+                )}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* User */}
         <div className="px-3 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>

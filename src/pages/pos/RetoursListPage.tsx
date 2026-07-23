@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   RotateCcw, Search, ArrowLeft, PackageX,
-  Calendar, Filter, User, X, RefreshCw,
+  Calendar, Filter, X, RefreshCw,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { format } from 'date-fns';
