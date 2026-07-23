@@ -84,6 +84,11 @@ interface AppState {
   updateCategorie: (id: string, c: Partial<Categorie>) => void;
   deleteCategorie: (id: string) => void;
 
+  // ── Magasins ──────────────────────────────────────────
+  addMagasin:    (m: Magasin) => void;
+  updateMagasin: (id: string, m: Partial<Magasin>) => void;
+  deleteMagasin: (id: string) => void;
+
   // ── Notifications ─────────────────────────────────────
   markNotificationRead:    (id: string) => void;
   markAllNotificationsRead: () => void;
@@ -441,6 +446,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
     set(s => ({ categories: s.categories.map(x => x.id === id ? { ...x, ...c } : x) })),
   deleteCategorie: (id) =>
     set(s => ({ categories: s.categories.filter(x => x.id !== id) })),
+
+  // ── Magasins ──────────────────────────────────────────
+  addMagasin: (m) => set(s => ({ magasins: [...s.magasins, m] })),
+  updateMagasin: (id, m) =>
+    set(s => ({ magasins: s.magasins.map(x => x.id === id ? { ...x, ...m } : x) })),
+  deleteMagasin: (id) =>
+    set(s => ({ magasins: s.magasins.filter(x => x.id !== id) })),
 
   // ── Notifications ─────────────────────────────────────
   markNotificationRead: (id) => {

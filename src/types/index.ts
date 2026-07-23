@@ -107,7 +107,7 @@ export interface Produit {
 }
 
 // ── Mouvement de stock ────────────────────────────────────
-export type TypeMouvement = "entree" | "sortie" | "ajustement" | "retour";
+export type TypeMouvement = "entree" | "sortie" | "usage_interne" | "ajustement" | "retour";
 
 export interface Mouvement {
   id: string;
@@ -354,4 +354,63 @@ export interface GroupeSurveille {
   // cookieSession déchiffré présent uniquement pour rôles bot/admin
   createdAt: Date;
   updatedAt: Date;
+}
+
+// ── Inventaire (Comptage Physique) ────────────────────────
+export interface LigneInventaire {
+  produitId: string;
+  produitRef: string;
+  produitNom: string;
+  stockTheorique: number;
+  stockReel: number;
+  ecart: number;
+}
+
+export interface InventaireSession {
+  id: string;
+  date: Date;
+  utilisateurId: string;
+  utilisateurNom: string;
+  statut: 'en_cours' | 'valide';
+  lignes: LigneInventaire[];
+  notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ── Sortie de Caisse ─────────────────────────────────────
+export interface SortieCaisse {
+  id: string;
+  montant: number;
+  motif: string;
+  categorie: string;
+  beneficiaire?: string;
+  utilisateurId: string;
+  utilisateurNom: string;
+  date: Date;
+  createdAt: Date;
+}
+
+// ── Clôture de Caisse (Rapport Z) ───────────────────────
+export interface ClotureCaisse {
+  id: string;
+  date: Date;
+  totalVentes: number;
+  nbVentes: number;
+  repartition: {
+    especes?: number;
+    mobile_money?: number;
+    carte?: number;
+    credit?: number;
+    autre?: number;
+  };
+  montantTheorique: number;
+  montantReel: number;
+  ecart: number;
+  notes?: string;
+  utilisateurId: string;
+  utilisateurNom: string;
+  vendeurId: string;
+  vendeurNom: string;
+  createdAt: Date;
 }

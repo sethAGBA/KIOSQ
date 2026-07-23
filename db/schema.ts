@@ -30,6 +30,7 @@ export const statutCFEnum = pgEnum('statut_commande_fournisseur', [
 
 export const statutGroupeEnum = pgEnum('statut_groupe', ['actif', 'inactif', 'erreur']);
 export const statutLeadEnum   = pgEnum('statut_lead',   ['nouveau', 'envoye', 'ignore']);
+export const typeMouvementEnum = pgEnum('type_mouvement', ['entree', 'sortie', 'usage_interne', 'ajustement']);
 
 // ── Tenants ───────────────────────────────────────────────
 export const tenants = pgTable('tenants', {
@@ -135,6 +136,23 @@ export const produits = pgTable('produits', {
   tenantId:     text('tenant_id').notNull().references(() => tenants.id),
   createdAt:    timestamp('created_at').notNull().defaultNow(),
   updatedAt:    timestamp('updated_at').notNull().defaultNow(),
+});
+
+// ── Mouvements de Stock ───────────────────────────────────
+export const mouvementsStock = pgTable('mouvements_stock', {
+  id:            text('id').primaryKey(),
+  tenantId:      text('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  produitId:     text('produit_id').notNull().references(() => produits.id, { onDelete: 'cascade' }),
+  produitNom:    text('produit_nom').notNull(),
+  produitRef:    text('produit_ref').notNull(),
+  type:          typeMouvementEnum('type').notNull(),
+  quantite:      integer('quantite').notNull(),
+  stockAvant:    integer('stock_avant').notNull(),
+  stockApres:    integer('stock_apres').notNull(),
+  motif:         text('motif'),
+  utilisateurId: text('utilisateur_id'),
+  utilisateurNom:text('utilisateur_nom'),
+  createdAt:     timestamp('created_at').notNull().defaultNow(),
 });
 
 // ── Clients ───────────────────────────────────────────────
@@ -324,6 +342,53 @@ export const catalogueTemplates = pgTable('catalogue_templates', {
   createdAt:       timestamp('created_at').notNull().defaultNow(),
 });
 
+// ── Inventaires (Comptage Physique) ────────────────────────
+export const inventaires = pgTable('inventaires', {
+  id:             text('id').primaryKey(),
+  tenantId:       text('tenant_id').notNull().references(() => tenants.id),
+  date:           timestamp('date').notNull().defaultNow(),
+  utilisateurId: text('utilisateur_id').notNull(),
+  utilisateurNom:text('utilisateur_nom').notNull(),
+  statut:         text('statut').notNull().default('en_cours'), // 'en_cours' | 'valide'
+  lignes:         jsonb('lignes').notNull().default([]), // array of { produitId, produitRef, produitNom, stockTheorique, stockReel, ecart }
+  notes:          text('notes'),
+  createdAt:      timestamp('created_at').notNull().defaultNow(),
+  updatedAt:      timestamp('updated_at').notNull().defaultNow(),
+});
+
+// ── Sorties de Caisse ─────────────────────────────────────
+export const sortiesCaisse = pgTable('sorties_caisse', {
+  id:             text('id').primaryKey(),
+  tenantId:       text('tenant_id').notNull().references(() => tenants.id),
+  montant:        numeric('montant', { precision: 15, scale: 2 }).notNull(),
+  motif:          text('motif').notNull(),
+  categorie:      text('categorie').notNull(),
+  beneficiaire:   text('beneficiaire'),
+  utilisateurId: text('utilisateur_id').notNull(),
+  utilisateurNom:text('utilisateur_nom').notNull(),
+  date:           timestamp('date').notNull().defaultNow(),
+  createdAt:      timestamp('created_at').notNull().defaultNow(),
+});
+
+// ── Clôtures de Caisse (Rapport Z) ──────────────────────
+export const cloturesCaisse = pgTable('clotures_caisse', {
+  id:               text('id').primaryKey(),
+  tenantId:         text('tenant_id').notNull().references(() => tenants.id),
+  date:             timestamp('date').notNull().defaultNow(),
+  totalVentes:      numeric('total_ventes', { precision: 15, scale: 2 }).notNull(),
+  nbVentes:         integer('nb_ventes').notNull().default(0),
+  repartition:      jsonb('repartition').notNull().default({}),
+  montantTheorique: numeric('montant_theorique', { precision: 15, scale: 2 }).notNull(),
+  montantReel:      numeric('montant_reel', { precision: 15, scale: 2 }).notNull(),
+  ecart:            numeric('ecart', { precision: 15, scale: 2 }).notNull(),
+  notes:            text('notes'),
+  utilisateurId:   text('utilisateur_id').notNull(),
+  utilisateurNom:  text('utilisateur_nom').notNull(),
+  vendeurId:        text('vendeur_id').notNull(),
+  vendeurNom:       text('vendeur_nom').notNull(),
+  createdAt:        timestamp('created_at').notNull().defaultNow(),
+});
+
 // ── Type helpers ──────────────────────────────────────────
 export type TenantRow         = typeof tenants.$inferSelect;
 export type UserRow           = typeof users.$inferSelect;
@@ -341,3 +406,6 @@ export type GroupeSurveilleRow = typeof groupesSurveilles.$inferSelect;
 export type LeadRow            = typeof leads.$inferSelect;
 export type AuditLogRow            = typeof auditLogs.$inferSelect;
 export type CatalogueTemplateRow   = typeof catalogueTemplates.$inferSelect;
+export type InventaireRow          = typeof inventaires.$inferSelect;
+export type SortieCaisseRow        = typeof sortiesCaisse.$inferSelect;
+export type ClotureCaisseRow       = typeof cloturesCaisse.$inferSelect;

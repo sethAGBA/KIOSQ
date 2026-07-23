@@ -13,6 +13,7 @@ const PatchSchema = z.object({
   role:      z.enum(['admin', 'commercial', 'gestionnaire', 'comptable', 'lecteur']).optional(),
   telephone: z.string().optional(),
   actif:     z.boolean().optional(),
+  magasinId: z.string().nullable().optional(),
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

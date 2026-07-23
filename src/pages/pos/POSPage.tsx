@@ -21,6 +21,9 @@ interface LigneCart {
   produitRef: string;
   produitNom: string;
   prixUnitaire: number;
+  prixVente: number;
+  prixVenteGros?: number;
+  typePrix: 'detail' | 'gros';
   quantite: number;
   remise: number;
   total: number;
@@ -42,6 +45,41 @@ export default function POSPage() {
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('');
   const [cart, setCart] = useState<LigneCart[]>([]);
+  const [tariffMode, setTariffMode] = useState<'detail' | 'gros'>('detail');
+
+  const handleTariffModeChange = (mode: 'detail' | 'gros') => {
+    setTariffMode(mode);
+    if (cart.length > 0) {
+      setCart(prev => prev.map(l => {
+        if (mode === 'gros') {
+          if (l.prixVenteGros && l.prixVenteGros > 0) {
+            return { ...l, typePrix: 'gros', prixUnitaire: l.prixVenteGros, total: l.quantite * l.prixVenteGros };
+          }
+          return l;
+        } else {
+          return { ...l, typePrix: 'detail', prixUnitaire: l.prixVente, total: l.quantite * l.prixVente };
+        }
+      }));
+    }
+  };
+
+  const toggleLineTypePrix = (produitId: string) => {
+    setCart(prev => prev.map(l => {
+      if (l.produitId !== produitId) return l;
+      const targetType = l.typePrix === 'detail' ? 'gros' : 'detail';
+      if (targetType === 'gros' && (!l.prixVenteGros || l.prixVenteGros <= 0)) {
+        toast.error('Prix de gros non défini pour ce produit');
+        return l;
+      }
+      const newPrice = targetType === 'gros' && l.prixVenteGros ? l.prixVenteGros : l.prixVente;
+      return {
+        ...l,
+        typePrix: targetType,
+        prixUnitaire: newPrice,
+        total: l.quantite * newPrice,
+      };
+    }));
+  };
   
   // Client Search & Selection
   const [clientSearch, setClientSearch] = useState('');
@@ -100,6 +138,15 @@ export default function POSPage() {
     const p = produits.find(x => x.id === produitId);
     if (!p) return;
     if (p.stockActuel === 0) { toast.error(`${p.designation} est en rupture`); return; }
+
+    let useGros = tariffMode === 'gros';
+    if (useGros && (!p.prixVenteGros || p.prixVenteGros <= 0)) {
+      toast.error(`Prix de gros non défini pour ${p.designation}, tarif détail appliqué`);
+      useGros = false;
+    }
+    const prixU = useGros && p.prixVenteGros ? p.prixVenteGros : p.prixVente;
+    const typePrix: 'detail' | 'gros' = useGros ? 'gros' : 'detail';
+
     setCart(prev => {
       const existing = prev.find(l => l.produitId === produitId);
       if (existing) {
@@ -108,7 +155,18 @@ export default function POSPage() {
           ? { ...l, quantite: l.quantite + 1, total: (l.quantite + 1) * l.prixUnitaire }
           : l);
       }
-      return [...prev, { produitId: p.id, produitRef: p.reference, produitNom: p.designation, prixUnitaire: p.prixVente, quantite: 1, remise: 0, total: p.prixVente }];
+      return [...prev, {
+        produitId: p.id,
+        produitRef: p.reference,
+        produitNom: p.designation,
+        prixUnitaire: prixU,
+        prixVente: p.prixVente,
+        prixVenteGros: p.prixVenteGros,
+        typePrix,
+        quantite: 1,
+        remise: 0,
+        total: prixU,
+      }];
     });
   };
 
@@ -255,20 +313,49 @@ export default function POSPage() {
       {/* ══ GAUCHE : Catalogue ══ */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden px-6 pt-6 pb-4 gap-4 no-print">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <p className="text-[10px] font-mono tracking-widest uppercase mb-0.5" style={{ color: 'var(--color-ink-muted)' }}>Vente directe</p>
             <h1 className="text-2xl font-bold" style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
               Point de Vente
             </h1>
           </div>
-          <button
-            onClick={() => navigate('/pos/historique')}
-            className="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3 shadow-sm"
-          >
-            <History size={14} />
-            Historique ventes
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Mode Tarif Switch */}
+            <div className="flex items-center bg-white p-1 rounded-xl border shadow-sm" style={{ borderColor: 'var(--color-cream-dark)' }}>
+              <button
+                type="button"
+                onClick={() => handleTariffModeChange('detail')}
+                className={clsx(
+                  'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                  tariffMode === 'detail'
+                    ? 'bg-[var(--color-gold)] text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-800'
+                )}
+              >
+                Détail
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTariffModeChange('gros')}
+                className={clsx(
+                  'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                  tariffMode === 'gros'
+                    ? 'bg-purple-700 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-800'
+                )}
+              >
+                Vente en Gros
+              </button>
+            </div>
+            <button
+              onClick={() => navigate('/pos/historique')}
+              className="btn-secondary text-xs flex items-center gap-1.5 py-2 px-3 shadow-sm"
+            >
+              <History size={14} />
+              Historique
+            </button>
+          </div>
         </div>
 
         {/* Recherche */}
@@ -320,6 +407,10 @@ export default function POSPage() {
                 const inCart   = cart.find(l => l.produitId === p.id);
                 const isRupture = p.stockActuel === 0;
                 const isAlerte  = !isRupture && p.stockActuel <= p.stockMinimum;
+                const priceToShow = tariffMode === 'gros' && p.prixVenteGros && p.prixVenteGros > 0
+                  ? p.prixVenteGros
+                  : p.prixVente;
+
                 return (
                   <button
                     key={p.id}
@@ -355,7 +446,14 @@ export default function POSPage() {
                       <p className="text-sm font-semibold leading-snug line-clamp-2 mt-0.5" style={{ color: 'var(--color-ink)' }}>{p.designation}</p>
                     </div>
                     <div className="flex items-end justify-between mt-auto">
-                      <p className="text-base font-bold" style={{ color: 'var(--color-gold)' }}>{formatPrice(p.prixVente)}</p>
+                      <div>
+                        <p className="text-base font-bold" style={{ color: 'var(--color-gold)' }}>{formatPrice(priceToShow)}</p>
+                        {p.prixVenteGros ? (
+                          <p className="text-[10px] text-purple-700 font-medium">
+                            Gros: {formatPrice(p.prixVenteGros)}
+                          </p>
+                        ) : null}
+                      </div>
                       <span
                         className="text-[10px] font-mono px-1.5 py-0.5 rounded font-medium"
                         style={{
@@ -376,43 +474,56 @@ export default function POSPage() {
 
       {/* ══ DROITE : Panier ══ */}
       <div
-        className="flex flex-col w-[380px] shrink-0 border-l overflow-hidden no-print"
+        className="flex flex-col w-[390px] xl:w-[420px] shrink-0 border-l h-full overflow-hidden no-print"
         style={{ backgroundColor: 'white', borderColor: 'var(--color-cream-dark)' }}
       >
-        {/* Panier header */}
-        <div className="px-5 py-4 border-b" style={{ borderColor: 'var(--color-cream-dark)' }}>
+        {/* Panier header + Client search */}
+        <div className="p-4 border-b shrink-0 space-y-3" style={{ borderColor: 'var(--color-cream-dark)' }}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <ShoppingCart size={16} style={{ color: 'var(--color-gold)' }} />
-              <span className="font-semibold text-sm" style={{ color: 'var(--color-ink)' }}>Panier</span>
-              {totalArticles > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: 'var(--color-gold)' }}>
-                  {totalArticles}
-                </span>
-              )}
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--color-gold-pale)', color: 'var(--color-gold)' }}>
+                <ShoppingCart size={18} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-sm" style={{ color: 'var(--color-ink)' }}>Panier en cours</span>
+                  {totalArticles > 0 && (
+                    <span className="px-2 py-0.5 rounded-full text-xs font-bold text-white shadow-sm" style={{ backgroundColor: 'var(--color-gold)' }}>
+                      {totalArticles} {totalArticles > 1 ? 'articles' : 'article'}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
             {cart.length > 0 && (
-              <button onClick={clearCart} className="text-xs flex items-center gap-1 px-2 py-1 rounded-lg transition-colors hover:bg-red-50" style={{ color: '#dc2626' }}>
-                <RotateCcw size={11} /> Vider
+              <button
+                onClick={clearCart}
+                className="text-xs font-medium flex items-center gap-1 px-2.5 py-1 rounded-lg transition-colors hover:bg-red-50"
+                style={{ color: '#dc2626' }}
+              >
+                <RotateCcw size={12} /> Vider
               </button>
             )}
           </div>
           
           {/* Client Search with Autocomplete Dropdown */}
-          <div className="mt-3 relative">
-            <User size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-ink-muted)' }} />
+          <div className="relative">
+            <User size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-ink-muted)' }} />
             {selectedClient ? (
-              <div className="flex items-center justify-between bg-var(--color-gold-pale) border border-var(--color-gold) rounded-lg p-2 text-xs">
-                <span className="font-medium text-[var(--color-gold)]">Client: {selectedClient.nom}</span>
-                <button onClick={() => setSelectedClient(null)} className="p-0.5 rounded hover:bg-gold/10">
-                  <X size={12} className="text-red-500" />
+              <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl p-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <User size={14} className="text-amber-700" />
+                  <span className="font-semibold text-amber-900">{selectedClient.nom}</span>
+                </div>
+                <button onClick={() => setSelectedClient(null)} className="p-1 rounded-lg hover:bg-amber-100 transition-colors">
+                  <X size={13} className="text-amber-700" />
                 </button>
               </div>
             ) : (
               <div>
                 <input
                   type="text"
-                  className="input pl-8 text-xs"
+                  className="input pl-9 text-xs py-2 bg-gray-50/50"
                   placeholder="Rechercher / Sélectionner un client…"
                   value={clientSearch}
                   onChange={e => {
@@ -422,23 +533,23 @@ export default function POSPage() {
                   onFocus={() => setShowClientDropdown(true)}
                 />
                 {showClientDropdown && clientSearch && (
-                  <div className="absolute left-0 right-0 mt-1 bg-white border border-var(--color-cream-dark) rounded-lg shadow-lg max-h-40 overflow-y-auto z-10 text-xs">
+                  <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto z-20 text-xs">
                     {clientsFiltres.length === 0 ? (
-                      <div className="p-2 text-var(--color-ink-muted)">Aucun client trouvé</div>
+                      <div className="p-3 text-gray-400 text-center">Aucun client trouvé</div>
                     ) : (
                       clientsFiltres.map(c => (
                         <button
                           key={c.id}
                           type="button"
-                          className="w-full text-left px-3 py-2 hover:bg-var(--color-cream) border-b last:border-0 border-var(--color-cream-dark)"
+                          className="w-full text-left px-3 py-2.5 hover:bg-amber-50 border-b last:border-0 border-gray-100 transition-colors"
                           onClick={() => {
                             setSelectedClient(c);
                             setClientSearch('');
                             setShowClientDropdown(false);
                           }}
                         >
-                          <p className="font-semibold text-var(--color-ink)">{c.nom}</p>
-                          <p className="text-[10px] text-var(--color-ink-muted)">{c.code || 'Pas de code'}</p>
+                          <p className="font-semibold text-gray-900">{c.nom}</p>
+                          <p className="text-[10px] text-gray-500">{c.code || 'Pas de code'}</p>
                         </button>
                       ))
                     )}
@@ -449,76 +560,107 @@ export default function POSPage() {
           </div>
         </div>
 
-        {/* Lignes panier */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+        {/* Lignes panier - FLEX 1 MIN-H-0 FOR SMOOTH SCROLLING */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2.5 custom-scrollbar">
           {cart.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-32 gap-2">
-              <ShoppingCart size={28} style={{ color: 'var(--color-cream-dark)' }} />
-              <p className="text-xs text-center" style={{ color: 'var(--color-ink-muted)' }}>Cliquez sur un produit<br />pour l'ajouter</p>
+            <div className="flex flex-col items-center justify-center h-full min-h-[160px] gap-3 text-gray-400">
+              <div className="w-14 h-14 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center">
+                <ShoppingCart size={24} className="text-gray-300" />
+              </div>
+              <div className="text-center">
+                <p className="text-xs font-semibold text-gray-600">Votre panier est vide</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">Cliquez sur un produit du catalogue pour l'ajouter</p>
+              </div>
             </div>
           ) : cart.map(l => (
             <div
               key={l.produitId}
-              className="flex items-center gap-2 p-3 rounded-xl"
-              style={{ backgroundColor: 'var(--color-cream)', border: '1px solid var(--color-cream-dark)' }}
+              className="flex flex-col gap-2 p-3 rounded-xl border transition-all hover:border-amber-300 shadow-sm"
+              style={{ backgroundColor: 'var(--color-cream)', borderColor: 'var(--color-cream-dark)' }}
             >
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold truncate" style={{ color: 'var(--color-ink)' }}>{l.produitNom}</p>
-                <p className="text-[10px] font-mono mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>{formatPrice(l.prixUnitaire)} / u</p>
-              </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold leading-snug line-clamp-2" style={{ color: 'var(--color-ink)' }}>{l.produitNom}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10px] font-mono text-gray-500">{l.produitRef}</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleLineTypePrix(l.produitId)}
+                      className={clsx(
+                        'text-[9px] px-1.5 py-0.5 rounded font-bold uppercase transition-colors shrink-0',
+                        l.typePrix === 'gros'
+                          ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                          : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                      )}
+                      title="Changer le tarif (Détail / Gros)"
+                    >
+                      {l.typePrix === 'gros' ? 'Gros' : 'Détail'}
+                    </button>
+                  </div>
+                </div>
                 <button
-                  onClick={() => updateQty(l.produitId, l.quantite - 1)}
-                  className="w-6 h-6 rounded-lg flex items-center justify-center border transition-colors hover:bg-white"
-                  style={{ borderColor: 'var(--color-cream-dark)', color: 'var(--color-ink-muted)' }}
+                  onClick={() => removeLine(l.produitId)}
+                  className="p-1 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors shrink-0"
+                  title="Supprimer du panier"
                 >
-                  <Minus size={10} />
-                </button>
-                {/* Saisie quantité manuelle */}
-                <input
-                  type="number"
-                  min="1"
-                  className="w-12 text-center text-xs font-bold border rounded bg-white py-0.5"
-                  style={{ borderColor: 'var(--color-cream-dark)' }}
-                  value={l.quantite}
-                  onChange={e => {
-                    const val = parseInt(e.target.value) || 1;
-                    updateQty(l.produitId, val);
-                  }}
-                />
-                <button
-                  onClick={() => updateQty(l.produitId, l.quantite + 1)}
-                  className="w-6 h-6 rounded-lg flex items-center justify-center border transition-colors hover:bg-white"
-                  style={{ borderColor: 'var(--color-cream-dark)', color: 'var(--color-ink-muted)' }}
-                >
-                  <Plus size={10} />
+                  <X size={14} />
                 </button>
               </div>
-              <p className="text-sm font-bold w-20 text-right shrink-0" style={{ color: 'var(--color-gold)' }}>{formatPrice(l.total)}</p>
-              <button onClick={() => removeLine(l.produitId)} className="p-1 rounded-lg hover:bg-red-50 transition-colors" style={{ color: '#dc2626' }}>
-                <X size={13} />
-              </button>
+
+              <div className="flex items-center justify-between pt-2 border-t border-gray-200/60">
+                {/* Quantité boutons */}
+                <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-gray-200 shadow-sm">
+                  <button
+                    onClick={() => updateQty(l.produitId, l.quantite - 1)}
+                    className="w-6 h-6 rounded-md flex items-center justify-center hover:bg-gray-100 text-gray-600 transition-colors"
+                  >
+                    <Minus size={11} />
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    className="w-10 text-center text-xs font-bold border-0 focus:ring-0 p-0 text-gray-900"
+                    value={l.quantite}
+                    onChange={e => {
+                      const val = parseInt(e.target.value) || 1;
+                      updateQty(l.produitId, val);
+                    }}
+                  />
+                  <button
+                    onClick={() => updateQty(l.produitId, l.quantite + 1)}
+                    className="w-6 h-6 rounded-md flex items-center justify-center hover:bg-gray-100 text-gray-600 transition-colors"
+                  >
+                    <Plus size={11} />
+                  </button>
+                </div>
+
+                {/* Prix unitaire & Total ligne */}
+                <div className="text-right">
+                  <p className="text-[10px] text-gray-400">{formatPrice(l.prixUnitaire)} / u</p>
+                  <p className="text-sm font-extrabold" style={{ color: 'var(--color-gold)' }}>{formatPrice(l.total)}</p>
+                </div>
+              </div>
             </div>
           ))}
         </div>
 
         {/* ── Totaux + paiement ── */}
-        <div className="px-4 py-4 border-t space-y-4" style={{ borderColor: 'var(--color-cream-dark)', backgroundColor: 'var(--color-cream)' }}>
+        <div className="shrink-0 p-4 border-t space-y-3 max-h-[50vh] overflow-y-auto" style={{ borderColor: 'var(--color-cream-dark)', backgroundColor: 'var(--color-cream)' }}>
           {/* Remises */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="label">Remise TTC (Montant F)</label>
+              <label className="label text-[10px]">Remise Fixe (F)</label>
               <input
-                type="number" min="0" className="input text-sm text-center font-semibold"
+                type="number" min="0" className="input text-xs text-center font-semibold py-1.5"
                 value={remiseTTC || ''}
                 onChange={e => setRemiseTTC(+e.target.value)}
                 placeholder="0 F"
               />
             </div>
             <div>
-              <label className="label">Remise %</label>
+              <label className="label text-[10px]">Remise %</label>
               <input
-                type="number" min="0" max="100" className="input text-sm text-center font-semibold"
+                type="number" min="0" max="100" className="input text-xs text-center font-semibold py-1.5"
                 value={remisePercent || ''}
                 onChange={e => setRemisePercent(+e.target.value)}
                 placeholder="0 %"
@@ -531,7 +673,7 @@ export default function POSPage() {
             <input
               type="checkbox"
               id="appliquer-tva-cb"
-              className="w-4 h-4 text-var(--color-gold) border-gray-300 rounded focus:ring-var(--color-gold)"
+              className="w-3.5 h-3.5 text-var(--color-gold) border-gray-300 rounded focus:ring-var(--color-gold)"
               checked={appliquerTVA}
               onChange={e => setAppliquerTVA(e.target.checked)}
             />
@@ -541,17 +683,17 @@ export default function POSPage() {
           </div>
 
           {/* Totaux */}
-          <div className="bg-white rounded-xl p-3 space-y-1.5" style={{ border: '1px solid var(--color-cream-dark)' }}>
+          <div className="bg-white rounded-xl p-3 space-y-1.5 border border-gray-200">
             <div className="flex justify-between text-xs" style={{ color: 'var(--color-ink-muted)' }}>
               <span>Sous-total</span><span>{formatPrice(sousTotal)}</span>
             </div>
             {remisePercent > 0 && (
-              <div className="flex justify-between text-xs font-medium" style={{ color: '#dc2626' }}>
+              <div className="flex justify-between text-xs font-medium text-red-600">
                 <span>Remise ({remisePercent}%)</span><span>-{formatPrice(montantRemisePercent)}</span>
               </div>
             )}
             {remiseTTC > 0 && (
-              <div className="flex justify-between text-xs font-medium" style={{ color: '#dc2626' }}>
+              <div className="flex justify-between text-xs font-medium text-red-600">
                 <span>Remise fixe</span><span>-{formatPrice(remiseTTC)}</span>
               </div>
             )}
@@ -571,19 +713,19 @@ export default function POSPage() {
 
           {/* Mode paiement */}
           <div>
-            <label className="label">Mode de paiement</label>
-            <div className="grid grid-cols-2 gap-2">
+            <label className="label text-[10px] uppercase tracking-wider text-gray-500 mb-1">Mode de paiement</label>
+            <div className="grid grid-cols-2 gap-1.5">
               {MODES.map(m => (
                 <button
                   key={m.value}
                   onClick={() => setModePaiement(m.value)}
-                  className={clsx('py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 border-2 transition-all')}
+                  className={clsx('py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 border transition-all')}
                   style={modePaiement === m.value
                     ? { backgroundColor: 'var(--color-gold-pale)', borderColor: 'var(--color-gold)', color: 'var(--color-gold)' }
                     : { backgroundColor: 'white', borderColor: 'var(--color-cream-dark)', color: 'var(--color-ink-muted)' }
                   }
                 >
-                  <m.Icon size={14} />
+                  <m.Icon size={13} />
                   {m.label}
                 </button>
               ))}
@@ -592,16 +734,16 @@ export default function POSPage() {
 
           {/* Montant reçu */}
           <div>
-            <label className="label">Montant reçu (F)</label>
+            <label className="label text-[10px] uppercase tracking-wider text-gray-500 mb-1">Montant reçu (F)</label>
             <input
-              type="number" min="0" className="input text-sm font-semibold text-center"
+              type="number" min="0" className="input text-sm font-semibold text-center py-1.5"
               placeholder={String(Math.ceil(totalTTC))}
               value={montantRecu || ''}
               onChange={e => setMontantRecu(+e.target.value)}
             />
             {renduMonnaie > 0 && (
               <div
-                className="mt-2 flex justify-between px-3 py-2 rounded-lg text-sm font-bold"
+                className="mt-1.5 flex justify-between px-3 py-1.5 rounded-lg text-xs font-bold"
                 style={{ backgroundColor: '#f0fdf4', color: '#16a34a' }}
               >
                 <span>Rendu monnaie</span>
@@ -610,7 +752,7 @@ export default function POSPage() {
             )}
             {resteApayer > 0 && (
               <div
-                className="mt-2 flex justify-between px-3 py-2 rounded-lg text-xs font-semibold"
+                className="mt-1.5 flex justify-between px-3 py-1.5 rounded-lg text-xs font-semibold"
                 style={{ backgroundColor: '#fef9ee', color: '#d97706', border: '1px solid #fde68a' }}
               >
                 <span>⚠️ Reste (crédit client)</span>
@@ -623,7 +765,7 @@ export default function POSPage() {
           <button
             onClick={handleEncaisser}
             disabled={cart.length === 0 || loading}
-            className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all"
+            className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-[0.99]"
             style={cart.length === 0
               ? { backgroundColor: 'var(--color-cream-dark)', color: 'var(--color-ink-muted)', cursor: 'not-allowed' }
               : { backgroundColor: 'var(--color-gold)', color: 'white' }

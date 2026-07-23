@@ -308,7 +308,12 @@ export default function ProduitsPage() {
                   <td><span className="badge badge-neutral">{p.categorie ?? '—'}</span></td>
                   <td style={{ color: 'var(--color-ink-muted)' }}>{p.fournisseur ?? '—'}</td>
                   <td style={{ color: 'var(--color-ink)' }}>{formatPrice(p.prixAchat)}</td>
-                  <td className="font-semibold" style={{ color: 'var(--color-gold)' }}>{formatPrice(p.prixVente)}</td>
+                  <td>
+                    <span className="font-semibold block" style={{ color: 'var(--color-gold)' }}>{formatPrice(p.prixVente)}</span>
+                    {p.prixVenteGros ? (
+                      <span className="text-[10px] text-purple-700 font-mono block">Gros: {formatPrice(p.prixVenteGros)}</span>
+                    ) : null}
+                  </td>
                   <td>
                     <div className="flex items-center gap-1.5">
                       {isRupture ? <TrendingDown size={13} className="text-red-500" /> : isAlerte ? <AlertTriangle size={13} className="text-amber-500" /> : null}

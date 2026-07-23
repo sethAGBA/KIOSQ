@@ -84,3 +84,5 @@ export function statutLabel(statut: string): string {
   };
   return map[statut] ?? statut;
 }
+
+export { exportToCSV } from './exportUtils';

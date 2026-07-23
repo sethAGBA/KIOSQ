@@ -163,6 +163,77 @@ export const magasinsApi = {
   list:   () => get<import('@/types').Magasin[]>('/api/magasins'),
   create: (data: { nom: string; adresse?: string; telephone?: string }) =>
     post<import('@/types').Magasin>('/api/magasins', data),
+  update: (id: string, data: Partial<{ nom: string; adresse: string; telephone: string; actif: boolean }>) =>
+    patch<import('@/types').Magasin>(`/api/magasins/${id}`, data),
+  delete: (id: string) =>
+    del<{ message: string }>(`/api/magasins/${id}`),
+};
+
+// ── Mouvements de stock ───────────────────────────────────
+export const mouvementsApi = {
+  list: (params?: { type?: string; start?: string; end?: string }) => {
+    const cleanParams: Record<string, string> = {};
+    if (params?.type && params.type !== 'tous') cleanParams.type = params.type;
+    if (params?.start) cleanParams.start = params.start;
+    if (params?.end) cleanParams.end = params.end;
+    const searchStr = new URLSearchParams(cleanParams).toString();
+    const q = searchStr ? `?${searchStr}` : '';
+    return get<import('@/types').Mouvement[]>('/api/mouvements' + q);
+  },
+  create: (data: { produitId: string; type: string; quantite: number; motif?: string }) =>
+    post<import('@/types').Mouvement>('/api/mouvements', data),
+};
+
+// ── Inventaires ──────────────────────────────────────────
+export const inventairesApi = {
+  list:    () => get<import('@/types').InventaireSession[]>('/api/inventaires'),
+  create:  (data: { lignes: import('@/types').LigneInventaire[]; notes?: string; autoValidate?: boolean }) =>
+    post<import('@/types').InventaireSession>('/api/inventaires', data),
+  valider: (id: string) =>
+    post<import('@/types').InventaireSession>(`/api/inventaires/${id}/valider`, {}),
+};
+
+// ── Sorties de caisse ─────────────────────────────────────
+export const sortiesCaisseApi = {
+  list: (params?: { start?: string; end?: string; utilisateurId?: string }) => {
+    const cleanParams: Record<string, string> = {};
+    if (params?.start) cleanParams.start = params.start;
+    if (params?.end) cleanParams.end = params.end;
+    if (params?.utilisateurId && params.utilisateurId !== 'all') cleanParams.utilisateurId = params.utilisateurId;
+    const searchStr = new URLSearchParams(cleanParams).toString();
+    const q = searchStr ? `?${searchStr}` : '';
+    return get<import('@/types').SortieCaisse[]>('/api/sorties-caisse' + q);
+  },
+  create: (data: { montant: number; motif: string; categorie: string; beneficiaire?: string }) =>
+    post<import('@/types').SortieCaisse>('/api/sorties-caisse', data),
+};
+
+// ── Clôtures de caisse (Rapport Z) ───────────────────────
+export const cloturesCaisseApi = {
+  list: (params?: { start?: string; end?: string; utilisateurId?: string }) => {
+    const cleanParams: Record<string, string> = {};
+    if (params?.start) cleanParams.start = params.start;
+    if (params?.end) cleanParams.end = params.end;
+    if (params?.utilisateurId && params.utilisateurId !== 'all') cleanParams.utilisateurId = params.utilisateurId;
+    const searchStr = new URLSearchParams(cleanParams).toString();
+    const q = searchStr ? `?${searchStr}` : '';
+    return get<import('@/types').ClotureCaisse[]>('/api/clotures-caisse' + q);
+  },
+  getSummary: (vendeurId?: string) => {
+    const q = vendeurId && vendeurId !== 'all' ? `?vendeurId=${vendeurId}` : '';
+    return get<{
+      totalVentes: number;
+      nbVentes: number;
+      repartition: { especes: number; mobile_money: number; carte: number; credit: number; autre: number };
+      totalSorties: number;
+      montantTheorique: number;
+    }>('/api/clotures-caisse/summary' + q);
+  },
+  create: (data: {
+    vendeurId?: string;
+    montantReel: number;
+    notes?: string;
+  }) => post<import('@/types').ClotureCaisse>('/api/clotures-caisse', data),
 };
 
 // ── Commandes fournisseurs ────────────────────────────────

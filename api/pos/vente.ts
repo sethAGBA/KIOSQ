@@ -12,7 +12,7 @@ import { eq, sql, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { getDb } from '../../db/client.js';
-import { factures, clients, produits } from '../../db/schema.js';
+import { factures, clients, produits, mouvementsStock } from '../../db/schema.js';
 import { requireTenantAuth, handleOptions } from '../_lib/auth.js';
 import { ok, err, numericRow, parseBody} from '../_lib/response.js';
 
@@ -128,6 +128,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(factures)
       .where(eq(factures.tenantId, ctx.tenantId!));
     const numero = `TIC-${year}-${String((count ?? 0) + 1).padStart(4, '0')}`;
+
+    // ── 3b. Create stock movement records in database ──────────────────────────
+    for (const ligne of lignes) {
+      const [prod] = await db.select().from(produits)
+        .where(and(eq(produits.id, ligne.produitId), eq(produits.tenantId, ctx.tenantId!)))
+        .limit(1);
+
+      if (prod) {
+        await db.insert(mouvementsStock).values({
+          id:            nanoid(),
+          tenantId:      ctx.tenantId!,
+          produitId:     prod.id,
+          produitNom:    prod.designation,
+          produitRef:    prod.reference,
+          type:          'sortie',
+          quantite:      ligne.quantite,
+          stockAvant:    prod.stockActuel + ligne.quantite, // before deduction
+          stockApres:    prod.stockActuel,                  // after deduction
+          motif:         `Vente POS Ticket ${numero}`,
+          utilisateurId: ctx.sub,
+          utilisateurNom: `${ctx.prenom || ''} ${ctx.nom || ''}`.trim() || ctx.email,
+        }).catch(e => console.warn('[POS] stock movement insert failed', e));
+      }
+    }
 
     // Calculate partial payment
     const effectiveRecu = montantRecu > 0 ? montantRecu : totalTTC;

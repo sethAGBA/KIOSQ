@@ -34,11 +34,16 @@ import UtilisateursPage from '@/pages/utilisateurs/UtilisateursPage';
 import ConfigurationPage from '@/pages/configuration/ConfigurationPage';
 import AbonnementPage from '@/pages/configuration/AbonnementPage';
 import AuditPage from '@/pages/configuration/AuditPage';
+import MagasinsPage from '@/pages/configuration/MagasinsPage';
 import TemplatesPage from '@/pages/templates/TemplatesPage';
 import ExporterCataloguePage from '@/pages/templates/ExporterCataloguePage';
 import EtiquettesPage from '@/pages/produits/EtiquettesPage';
+import MouvementsPage from '@/pages/stock/MouvementsPage';
+import InventairePage from '@/pages/stock/InventairePage';
 import POSPage from '@/pages/pos/POSPage';
 import HistoriqueVentesPage from '@/pages/pos/HistoriqueVentesPage';
+import SortiesCaissePage from '@/pages/pos/SortiesCaissePage';
+import ClotureCaissePage from '@/pages/pos/ClotureCaissePage';
 import LeadsPage from '@/pages/leads/LeadsPage';
 import LeadDetailPage from '@/pages/leads/LeadDetailPage';
 
@@ -104,10 +109,14 @@ export default function App() {
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/clients/:id" element={<ClientDetailPage />} />
 
-          {/* Produits */}
+          {/* Produits & Stock */}
           <Route path="/produits" element={<ProduitsPage />} />
           <Route path="/produits/etiquettes" element={<EtiquettesPage />} />
           <Route path="/produits/:id" element={<ProduitDetailPage />} />
+          <Route path="/stock" element={<MouvementsPage />} />
+          <Route path="/stock/mouvements" element={<MouvementsPage />} />
+          <Route path="/stock/inventaire" element={<InventairePage />} />
+          <Route path="/inventaire" element={<InventairePage />} />
 
           {/* Commandes & Devis */}
           <Route path="/commandes" element={<CommandesPage />} />
@@ -122,9 +131,13 @@ export default function App() {
           <Route path="/fournisseurs/:id" element={<FournisseurDetailPage />} />
           <Route path="/fournisseurs/commande/:id" element={<CommandeFournisseurDetailPage />} />
 
-          {/* POS */}
+          {/* POS & Caisse */}
           <Route path="/pos" element={<POSPage />} />
           <Route path="/pos/historique" element={<HistoriqueVentesPage />} />
+          <Route path="/pos/sorties" element={<SortiesCaissePage />} />
+          <Route path="/rapports/sorties" element={<SortiesCaissePage />} />
+          <Route path="/pos/cloture" element={<ClotureCaissePage />} />
+          <Route path="/rapports/cloture" element={<ClotureCaissePage />} />
 
           {/* Leads */}
           <Route path="/leads" element={<LeadsPage />} />
@@ -138,6 +151,7 @@ export default function App() {
           <Route path="/configuration" element={<ConfigurationPage />} />
           <Route path="/configuration/abonnement" element={<AbonnementPage />} />
           <Route path="/configuration/audit" element={<AuditPage />} />
+          <Route path="/configuration/magasins" element={<MagasinsPage />} />
 
           {/* Templates */}
           <Route path="/templates" element={<TemplatesPage />} />

@@ -71,7 +71,7 @@ export default function LeadsPage() {
           <div className="flex items-center gap-2 mb-1">
             <Crosshair size={20} style={{ color: 'var(--color-gold)' }} />
             <h1 className="text-xl font-semibold" style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
-              Capture de Leads
+              Leads
             </h1>
           </div>
           <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>

@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import {
   LayoutDashboard, Users, Package, ShoppingCart, FileText,
   Truck, BarChart3, Settings, Bell, LogOut, ChevronRight,
-  Menu, X, TrendingUp, UserCog, Store, AlertTriangle, Crosshair, Sparkles,
+  Menu, X, TrendingUp, UserCog, Store, AlertTriangle, Crosshair, Sparkles, RefreshCw,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
@@ -14,7 +14,7 @@ import { formatPrice } from '@/lib/format';
 import NotificationDrawer from './NotificationDrawer';
 import ImpersonationBanner from '@/components/superadmin/ImpersonationBanner';
 import OnboardingWizard from '@/components/onboarding/OnboardingWizard';
-import { ShieldCheck, History, Layers } from 'lucide-react';
+import { ShieldCheck, History, Layers, ClipboardList, Receipt } from 'lucide-react';
 
 type NavItem = {
   to: string;
@@ -26,16 +26,20 @@ type NavItem = {
 
 const NAV: NavItem[] = [
   { to: '/dashboard',    label: 'Tableau de bord', icon: LayoutDashboard, roles: ['admin','commercial','gestionnaire','comptable','lecteur'] },
-  { to: '/pos',          label: 'Caisse / POS',    icon: Store,           roles: ['admin','commercial','gestionnaire'] },
-  { to: '/leads',        label: 'Capture de Leads', icon: Crosshair,      roles: ['admin','commercial','gestionnaire'], badge: 'leadsNouveau' },
+  { to: '/pos',          label: 'Ventes / Caisse', icon: Store,           roles: ['admin','commercial','gestionnaire'] },
+  { to: '/pos/sorties',  label: 'Sorties de Caisse', icon: Receipt,       roles: ['admin','commercial','gestionnaire','comptable'] },
+  { to: '/leads',        label: 'Leads',           icon: Crosshair,       roles: ['admin','commercial','gestionnaire'], badge: 'leadsNouveau' },
   { to: '/clients',      label: 'Clients',          icon: Users,           roles: ['admin','commercial','gestionnaire','lecteur'] },
-  { to: '/produits',     label: 'Catalogue & Stock', icon: Package,        roles: ['admin','commercial','gestionnaire','lecteur'] },
-  { to: '/templates',    label: 'Templates Catalogue', icon: Layers,       roles: ['admin','gestionnaire'] },
+  { to: '/produits',     label: 'Produits',         icon: Package,         roles: ['admin','commercial','gestionnaire','lecteur'] },
+  { to: '/stock',        label: 'Mouvements Stock', icon: RefreshCw,       roles: ['admin','commercial','gestionnaire','lecteur'] },
+  { to: '/stock/inventaire', label: 'Inventaires',     icon: ClipboardList,   roles: ['admin','commercial','gestionnaire','lecteur'] },
+  { to: '/templates',    label: 'Templates',        icon: Layers,          roles: ['admin','gestionnaire'] },
   { to: '/commandes',    label: 'Commandes & Devis', icon: ShoppingCart,   roles: ['admin','commercial','gestionnaire','lecteur'] },
   { to: '/facturation',  label: 'Facturation',       icon: FileText,       roles: ['admin','comptable','gestionnaire','lecteur'] },
   { to: '/fournisseurs', label: 'Fournisseurs',      icon: Truck,          roles: ['admin','gestionnaire','comptable','lecteur'] },
   { to: '/rapports',     label: 'Rapports',          icon: BarChart3,      roles: ['admin','comptable','gestionnaire'] },
   { to: '/utilisateurs', label: 'Utilisateurs',      icon: UserCog,        roles: ['admin'] },
+  { to: '/configuration/magasins', label: 'Magasins', icon: Store,        roles: ['admin','gestionnaire'] },
   { to: '/configuration/abonnement', label: 'Mon Abonnement', icon: ShieldCheck, roles: ['admin'] },
   { to: '/configuration/audit', label: 'Journal d\'Audit', icon: History,    roles: ['admin'] },
   { to: '/configuration',label: 'Configuration',     icon: Settings,       roles: ['admin'] },
