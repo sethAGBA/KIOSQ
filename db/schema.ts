@@ -187,7 +187,7 @@ export const commandes = pgTable('commandes', {
   id:               text('id').primaryKey(),
   numero:           text('numero').notNull().unique(),
   type:             typeCommandeEnum('type').notNull().default('commande'),
-  clientId:         text('client_id').notNull().references(() => clients.id),
+  clientId:         text('client_id').references(() => clients.id),
   clientNom:        text('client_nom').notNull(),
   commercial:       text('commercial'),
   statut:           statutCommandeEnum('statut').notNull().default('brouillon'),

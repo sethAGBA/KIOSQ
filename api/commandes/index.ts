@@ -19,7 +19,7 @@ const LigneSchema = z.object({
 
 const CommandeSchema = z.object({
   type:             z.enum(['commande', 'devis']).default('commande'),
-  clientId:         z.string(),
+  clientId:         z.string().optional(),
   commercial:       z.string().optional(),
   lignes:           z.array(LigneSchema),
   totalHT:          z.number().min(0),
@@ -64,10 +64,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!parsed.success) return err(res, 'Données invalides', 422);
 
     try {
-      // Get client name
-      const [client] = await db.select({ nom: clients.nom })
-        .from(clients).where(and(eq(clients.id, parsed.data.clientId), eq(clients.tenantId, ctx.tenantId!))).limit(1);
-      if (!client) return err(res, 'Client introuvable', 404);
+      // Résoudre le nom du client (anonyme si clientId absent)
+      let clientNom = 'Client anonyme';
+      let resolvedClientId: string | null = null;
+
+      if (parsed.data.clientId) {
+        const [client] = await db.select({ id: clients.id, nom: clients.nom })
+          .from(clients)
+          .where(and(eq(clients.id, parsed.data.clientId), eq(clients.tenantId, ctx.tenantId!)))
+          .limit(1);
+        if (!client) return err(res, 'Client introuvable', 404);
+        clientNom = client.nom;
+        resolvedClientId = client.id;
+      }
 
       // Build numero
       const all = await db.select().from(commandes).where(eq(commandes.tenantId, ctx.tenantId!));
@@ -82,8 +91,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         tenantId:         ctx.tenantId!,
         numero,
         type:             parsed.data.type,
-        clientId:         parsed.data.clientId,
-        clientNom:        client.nom,
+        clientId:         resolvedClientId,
+        clientNom,
         commercial:       parsed.data.commercial ?? ctx.nom,
         statut:           'brouillon',
         lignes:           parsed.data.lignes,

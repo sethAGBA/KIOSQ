@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Search, Plus, Minus, X,
@@ -135,55 +135,75 @@ export default function POSPage() {
   const [loading, setLoading] = useState(false);
 
   // ── Pré-chargement depuis une commande ────────────────────
-  useEffect(() => {
-    if (!commandeState?.commandeId || !commandeState.lignes) return;
+  // On garde une ref du state de navigation pour pouvoir rejouer
+  // le chargement quand les produits arrivent (race condition API)
+  const pendingCommandeState = useRef(commandeState);
 
-    // Construire le panier depuis les lignes de la commande
-    const lignesCart: LigneCart[] = commandeState.lignes.map(l => {
-      const produit = produits.find(p => p.id === l.produitId);
+  const chargerDepuisCommandeState = useCallback((
+    state: NonNullable<typeof commandeState>,
+    produitsList: typeof produits,
+    clientsList: typeof clients,
+  ) => {
+    if (!state.commandeId || !state.lignes) return;
+
+    const lignesCart: LigneCart[] = state.lignes.map(l => {
+      const produit = produitsList.find(p => p.id === l.produitId);
       return {
-        produitId:    l.produitId,
-        produitRef:   l.produitRef,
-        produitNom:   l.produitNom,
-        prixUnitaire: l.prixUnitaire,
-        prixVente:    produit?.prixVente ?? l.prixUnitaire,
+        produitId:     l.produitId,
+        produitRef:    l.produitRef,
+        produitNom:    l.produitNom,
+        prixUnitaire:  l.prixUnitaire,
+        prixVente:     produit?.prixVente ?? l.prixUnitaire,
         prixVenteGros: produit?.prixVenteGros,
-        typePrix:     'detail',
-        quantite:     l.quantite,
-        remise:       l.remise,
-        total:        l.total,
+        typePrix:      'detail' as const,
+        quantite:      l.quantite,
+        remise:        l.remise,
+        total:         l.total,
       };
     });
     setCart(lignesCart);
 
-    // Pré-sélectionner le client
-    if (commandeState.clientId) {
-      const client = clients.find(c => c.id === commandeState.clientId);
+    if (state.clientId) {
+      const client = clientsList.find(c => c.id === state.clientId);
       if (client) setSelectedClient(client);
     }
 
-    // Appliquer remise globale si présente
-    if (commandeState.remiseGlobale && commandeState.remiseGlobale > 0) {
-      setRemisePercent(commandeState.remiseGlobale);
-    }
+    if (state.remiseGlobale && state.remiseGlobale > 0) setRemisePercent(state.remiseGlobale);
+    if (state.tva && state.tva > 0) setAppliquerTVA(true);
 
-    // Appliquer TVA si > 0
-    if (commandeState.tva && commandeState.tva > 0) {
-      setAppliquerTVA(true);
-    }
-
-    // Mémoriser la commande source pour l'afficher
     setCommandeSource({
-      id: commandeState.commandeId,
-      numero: commandeState.commandeNumero ?? commandeState.commandeId,
+      id: state.commandeId,
+      numero: state.commandeNumero ?? state.commandeId,
     });
+  }, []);
 
-    toast.success(`Commande ${commandeState.commandeNumero ?? ''} chargée en caisse`);
-    // Nettoyer le state de navigation pour éviter le rechargement au refresh
-    window.history.replaceState({}, '');
-  // S'exécute une seule fois au montage
+  // Chargement initial au montage
+  useEffect(() => {
+    if (!pendingCommandeState.current?.commandeId || !pendingCommandeState.current.lignes) return;
+
+    chargerDepuisCommandeState(pendingCommandeState.current, produits, clients);
+
+    if (produits.length > 0) {
+      // Produits déjà disponibles — chargement terminé, nettoyer
+      toast.success(`Commande ${pendingCommandeState.current.commandeNumero ?? ''} chargée en caisse`);
+      pendingCommandeState.current = null;
+      window.history.replaceState({}, '');
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Rejouer quand les produits arrivent (cas où l'API répond après le montage)
+  useEffect(() => {
+    if (!pendingCommandeState.current?.commandeId || !pendingCommandeState.current.lignes) return;
+    if (produits.length === 0) return;
+
+    chargerDepuisCommandeState(pendingCommandeState.current, produits, clients);
+    toast.success(`Commande ${pendingCommandeState.current.commandeNumero ?? ''} chargée en caisse`);
+    pendingCommandeState.current = null;
+    window.history.replaceState({}, '');
+  // Se déclenche dès que produits devient non-vide
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [produits.length]);
 
   // ── Catalogue filtré ──────────────────────────────────────
   const produitsFiltres = useMemo(() => produits.filter(p => {
