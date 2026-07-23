@@ -1,17 +1,17 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Search, Plus, Minus, X,
   Package, User, CreditCard, Smartphone,
   Landmark, Banknote, Tag, RotateCcw, ShoppingCart,
-  History,
+  History, ClipboardList, Clock, ChevronRight,
 } from 'lucide-react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { useAppStore } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
 import { formatPrice } from '@/lib/format';
-import { posApi, USE_API } from '@/lib/api';
+import { posApi, commandesApi, USE_API } from '@/lib/api';
 import type { ModePaiement, Facture } from '@/types';
 import { ReceiptModal } from '@/components/pos/ReceiptModal';
 import { SaleSuccessModal } from '@/components/pos/SaleSuccessModal';
@@ -29,6 +29,19 @@ interface LigneCart {
   total: number;
 }
 
+// ── File d'attente ────────────────────────────────────────
+interface PanierEnAttente {
+  id: string;
+  label: string;               // ex: "Client Diallo" ou "Panier #2"
+  cart: LigneCart[];
+  selectedClient: any | null;
+  remiseTTC: number;
+  remisePercent: number;
+  appliquerTVA: boolean;
+  commandeSource: { id: string; numero: string } | null;
+  savedAt: Date;
+}
+
 const MODES: { value: ModePaiement; label: string; Icon: React.FC<{ size?: number }> }[] = [
   { value: 'especes',      label: 'Espèces',      Icon: Banknote },
   { value: 'mobile_money', label: 'Mobile Money', Icon: Smartphone },
@@ -38,14 +51,34 @@ const MODES: { value: ModePaiement; label: string; Icon: React.FC<{ size?: numbe
 
 export default function POSPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { produits, categories, clients, factures, addFacture, updateProduit, updateClient } = useAppStore();
+  const { commandes, updateCommande } = useAppStore();
   const { user } = useAuthStore();
+
+  // ── State de navigation depuis une commande ───────────────
+  const commandeState = location.state as {
+    commandeId?: string;
+    commandeNumero?: string;
+    statutPrecedent?: string;
+    clientId?: string;
+    clientNom?: string;
+    lignes?: Array<{ produitId: string; produitRef: string; produitNom: string; quantite: number; prixUnitaire: number; remise: number; total: number }>;
+    remiseGlobale?: number;
+    tva?: number;
+  } | null;
 
   // ── States ────────────────────────────────────────────────
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('');
   const [cart, setCart] = useState<LigneCart[]>([]);
   const [tariffMode, setTariffMode] = useState<'detail' | 'gros'>('detail');
+  const [commandeSource, setCommandeSource] = useState<{ id: string; numero: string } | null>(null);
+
+  // ── File d'attente ────────────────────────────────────────
+  const [waitingQueue, setWaitingQueue] = useState<PanierEnAttente[]>([]);
+  const [showQueue, setShowQueue] = useState(false);
+  const [showCmdQueue, setShowCmdQueue] = useState(false);
 
   const handleTariffModeChange = (mode: 'detail' | 'gros') => {
     setTariffMode(mode);
@@ -101,6 +134,57 @@ export default function POSPage() {
   const [showTicket, setShowTicket] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // ── Pré-chargement depuis une commande ────────────────────
+  useEffect(() => {
+    if (!commandeState?.commandeId || !commandeState.lignes) return;
+
+    // Construire le panier depuis les lignes de la commande
+    const lignesCart: LigneCart[] = commandeState.lignes.map(l => {
+      const produit = produits.find(p => p.id === l.produitId);
+      return {
+        produitId:    l.produitId,
+        produitRef:   l.produitRef,
+        produitNom:   l.produitNom,
+        prixUnitaire: l.prixUnitaire,
+        prixVente:    produit?.prixVente ?? l.prixUnitaire,
+        prixVenteGros: produit?.prixVenteGros,
+        typePrix:     'detail',
+        quantite:     l.quantite,
+        remise:       l.remise,
+        total:        l.total,
+      };
+    });
+    setCart(lignesCart);
+
+    // Pré-sélectionner le client
+    if (commandeState.clientId) {
+      const client = clients.find(c => c.id === commandeState.clientId);
+      if (client) setSelectedClient(client);
+    }
+
+    // Appliquer remise globale si présente
+    if (commandeState.remiseGlobale && commandeState.remiseGlobale > 0) {
+      setRemisePercent(commandeState.remiseGlobale);
+    }
+
+    // Appliquer TVA si > 0
+    if (commandeState.tva && commandeState.tva > 0) {
+      setAppliquerTVA(true);
+    }
+
+    // Mémoriser la commande source pour l'afficher
+    setCommandeSource({
+      id: commandeState.commandeId,
+      numero: commandeState.commandeNumero ?? commandeState.commandeId,
+    });
+
+    toast.success(`Commande ${commandeState.commandeNumero ?? ''} chargée en caisse`);
+    // Nettoyer le state de navigation pour éviter le rechargement au refresh
+    window.history.replaceState({}, '');
+  // S'exécute une seule fois au montage
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Catalogue filtré ──────────────────────────────────────
   const produitsFiltres = useMemo(() => produits.filter(p => {
     if (!p.actif) return false;
@@ -118,6 +202,15 @@ export default function POSPage() {
     const q = clientSearch.toLowerCase();
     return clients.filter(c => c.actif && (c.nom.toLowerCase().includes(q) || (c.code && c.code.toLowerCase().includes(q))));
   }, [clients, clientSearch]);
+
+  // ── Commandes en attente de passage en caisse ─────────────
+  const commandesEnAttenteCaisse = useMemo(() =>
+    commandes.filter(c =>
+      c.type === 'commande' &&
+      ['confirme', 'en_preparation', 'expedie', 'livre', 'en_caisse'].includes(c.statut)
+    ),
+    [commandes]
+  );
 
   // ── Calculs ───────────────────────────────────────────────
   const sousTotal = cart.reduce((s, l) => s + l.total, 0);
@@ -192,6 +285,78 @@ export default function POSPage() {
     setRemisePercent(0);
     setAppliquerTVA(false);
     setMontantRecu(0);
+    // Libérer la commande source si elle était verrouillée
+    if (commandeSource) {
+      const prevStatut = commandeState?.statutPrecedent ?? 'confirme';
+      if (USE_API) {
+        commandesApi.update(commandeSource.id, { statut: prevStatut as any }).catch(() => {});
+      }
+    }
+    setCommandeSource(null);
+  };
+
+  // ── Mettre le panier en attente ───────────────────────────
+  const mettreEnAttente = () => {
+    if (cart.length === 0) { toast.error('Le panier est vide'); return; }
+    const label = selectedClient?.nom
+      ?? commandeSource?.numero
+      ?? `Panier #${waitingQueue.length + 1}`;
+    const snapshot: PanierEnAttente = {
+      id: `wait-${Date.now()}`,
+      label,
+      cart,
+      selectedClient,
+      remiseTTC,
+      remisePercent,
+      appliquerTVA,
+      commandeSource,
+      savedAt: new Date(),
+    };
+    setWaitingQueue(prev => [...prev, snapshot]);
+    clearCart();
+    toast.success(`"${label}" mis en attente`);
+  };
+
+  // ── Rappeler un panier en attente ─────────────────────────
+  const rappelerPanier = (id: string) => {
+    const snap = waitingQueue.find(w => w.id === id);
+    if (!snap) return;
+    // Si panier actif non vide, le remettre automatiquement en attente
+    if (cart.length > 0) {
+      const currentLabel = selectedClient?.nom ?? commandeSource?.numero ?? `Panier #${waitingQueue.length + 1}`;
+      setWaitingQueue(prev => [
+        ...prev.filter(w => w.id !== id),
+        {
+          id: `wait-${Date.now()}`,
+          label: currentLabel,
+          cart,
+          selectedClient,
+          remiseTTC,
+          remisePercent,
+          appliquerTVA,
+          commandeSource,
+          savedAt: new Date(),
+        },
+      ]);
+    } else {
+      setWaitingQueue(prev => prev.filter(w => w.id !== id));
+    }
+    // Restaurer le panier sélectionné
+    setCart(snap.cart);
+    setSelectedClient(snap.selectedClient);
+    setRemiseTTC(snap.remiseTTC);
+    setRemisePercent(snap.remisePercent);
+    setAppliquerTVA(snap.appliquerTVA);
+    setCommandeSource(snap.commandeSource);
+    setMontantRecu(0);
+    setShowQueue(false);
+    toast.success(`"${snap.label}" rappelé`);
+  };
+
+  // ── Supprimer un panier en attente ────────────────────────
+  const supprimerAttente = (id: string) => {
+    setWaitingQueue(prev => prev.filter(w => w.id !== id));
+    toast('Panier supprimé', { icon: '🗑️' });
   };
 
   // ── Encaisser ─────────────────────────────────────────────
@@ -319,6 +484,14 @@ export default function POSPage() {
             <h1 className="text-2xl font-bold" style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
               Point de Vente
             </h1>
+            {/* Badge commande source */}
+            {commandeSource && (
+              <div className="flex items-center gap-1.5 mt-1 px-2.5 py-1 rounded-lg text-xs font-semibold w-fit"
+                style={{ backgroundColor: 'var(--color-gold-pale)', color: 'var(--color-gold)', border: '1px solid var(--color-gold)' }}>
+                <ClipboardList size={12} />
+                Commande {commandeSource.numero}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {/* Mode Tarif Switch */}
@@ -495,6 +668,23 @@ export default function POSPage() {
                 </div>
               </div>
             </div>
+          <div className="flex items-center gap-2">
+              {/* Bouton file d'attente */}
+              <button
+                onClick={() => setShowQueue(true)}
+                className="relative text-xs font-medium flex items-center gap-1 px-2.5 py-1 rounded-lg transition-colors hover:bg-amber-50"
+                style={{ color: 'var(--color-gold)' }}
+                title="File d'attente"
+              >
+                <Clock size={13} />
+                Attente
+                {waitingQueue.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-white text-[9px] font-bold flex items-center justify-center"
+                    style={{ backgroundColor: 'var(--color-gold)' }}>
+                    {waitingQueue.length}
+                  </span>
+                )}
+              </button>
             {cart.length > 0 && (
               <button
                 onClick={clearCart}
@@ -504,6 +694,7 @@ export default function POSPage() {
                 <RotateCcw size={12} /> Vider
               </button>
             )}
+          </div>
           </div>
           
           {/* Client Search with Autocomplete Dropdown */}
@@ -761,6 +952,18 @@ export default function POSPage() {
             )}
           </div>
 
+          {/* Bouton mettre en attente */}
+          {cart.length > 0 && (
+            <button
+              onClick={mettreEnAttente}
+              className="w-full py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 border-2 transition-all"
+              style={{ borderColor: 'var(--color-gold)', color: 'var(--color-gold)', backgroundColor: 'white' }}
+            >
+              <Clock size={15} />
+              Mettre en attente
+            </button>
+          )}
+
           {/* Bouton encaisser */}
           <button
             onClick={handleEncaisser}
@@ -795,6 +998,95 @@ export default function POSPage() {
         />
       )}
 
+      {/* ══ Modal file d'attente ══ */}
+      {showQueue && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setShowQueue(false)}>
+          <div
+            className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--color-cream-dark)' }}>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'var(--color-gold-pale)', color: 'var(--color-gold)' }}>
+                  <Clock size={16} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm" style={{ color: 'var(--color-ink)' }}>File d'attente</h3>
+                  <p className="text-[10px]" style={{ color: 'var(--color-ink-muted)' }}>
+                    {waitingQueue.length === 0 ? 'Aucun panier en attente' : `${waitingQueue.length} panier${waitingQueue.length > 1 ? 's' : ''} en attente`}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setShowQueue(false)} style={{ color: 'var(--color-ink-muted)' }}><X size={18} /></button>
+            </div>
+
+            {/* Liste */}
+            <div className="divide-y max-h-[60vh] overflow-y-auto" style={{ borderColor: 'var(--color-cream-dark)' }}>
+              {waitingQueue.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-2">
+                  <Clock size={32} style={{ color: 'var(--color-ink-muted)', opacity: 0.3 }} />
+                  <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>Aucun panier en attente</p>
+                  <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>Cliquez sur "Mettre en attente" pour garer un panier</p>
+                </div>
+              ) : waitingQueue.map(snap => {
+                const total = snap.cart.reduce((s, l) => s + l.total, 0);
+                const nbArt = snap.cart.reduce((s, l) => s + l.quantite, 0);
+                const mins = Math.floor((Date.now() - snap.savedAt.getTime()) / 60000);
+                return (
+                  <div key={snap.id} className="flex items-center gap-3 px-5 py-4 hover:bg-amber-50/50 transition-colors">
+                    {/* Icône */}
+                    <div className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-white font-bold text-sm"
+                      style={{ backgroundColor: 'var(--color-gold)' }}>
+                      {snap.label.charAt(0).toUpperCase()}
+                    </div>
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm truncate" style={{ color: 'var(--color-ink)' }}>{snap.label}</p>
+                      <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+                        {nbArt} article{nbArt > 1 ? 's' : ''} · {formatPrice(total)}
+                        {mins > 0 ? ` · il y a ${mins} min` : ' · À l\'instant'}
+                      </p>
+                    </div>
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => supprimerAttente(snap.id)}
+                        className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                        title="Supprimer"
+                        style={{ color: '#dc2626' }}
+                      >
+                        <X size={14} />
+                      </button>
+                      <button
+                        onClick={() => rappelerPanier(snap.id)}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors text-white"
+                        style={{ backgroundColor: 'var(--color-gold)' }}
+                      >
+                        Rappeler <ChevronRight size={12} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer — mettre le panier actuel en attente depuis le modal */}
+            {cart.length > 0 && (
+              <div className="px-5 py-4 border-t" style={{ borderColor: 'var(--color-cream-dark)' }}>
+                <button
+                  onClick={() => { mettreEnAttente(); }}
+                  className="w-full py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 border-2 transition-all"
+                  style={{ borderColor: 'var(--color-gold)', color: 'var(--color-gold)', backgroundColor: 'white' }}
+                >
+                  <Clock size={15} />
+                  Mettre le panier actuel en attente ({cart.reduce((s, l) => s + l.quantite, 0)} art.)
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
     </div>
   );

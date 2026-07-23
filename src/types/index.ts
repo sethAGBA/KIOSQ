@@ -157,6 +157,8 @@ export type StatutCommande =
   | "en_preparation"
   | "expedie"
   | "livre"
+  | "en_caisse"
+  | "en_facturation"
   | "annule";
 
 export type StatutDevis = "brouillon" | "envoye" | "accepte" | "refuse" | "expire";

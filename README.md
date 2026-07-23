@@ -243,7 +243,7 @@ npx tsx --env-file=.env.local db/check.ts
 vercel link
 
 # Déployer
-vercel deploy --prod
+npx vercel deploy --prod --yes
 ```
 
 Ajouter ces variables dans le dashboard Vercel (Settings → Environment Variables) :

@@ -1,12 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Download, ArrowUpRight, Clock, X, Trash2 } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Plus, Search, Download, ArrowUpRight, Clock, X, Trash2, ClipboardList } from 'lucide-react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import jsPDF from 'jspdf';
 import { useAppStore } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
-import { facturesApi, parametresApi, USE_API } from '@/lib/api';
+import { facturesApi, parametresApi, commandesApi, USE_API } from '@/lib/api';
 import { formatPrice, formatDate, statutColor, statutLabel } from '@/lib/format';
 import type { Facture } from '@/types';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
@@ -34,11 +34,16 @@ export default function FacturationPage() {
   const { factures, clients, commandes, addFacture } = useAppStore();
   const { user } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [search, setSearch] = useState('');
   const [statutFilter, setStatutFilter] = useState('tous');
   const [showModal, setShowModal] = useState(false);
+  const [showQueueModal, setShowQueueModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Commande verrouillée en cours de facturation (pour libérer si abandon)
+  const [lockedCommandeId, setLockedCommandeId] = useState<string | null>(null);
+  const [lockedCommandeStatutPrev, setLockedCommandeStatutPrev] = useState<string>('confirme');
 
   const [formClientId, setFormClientId] = useState('');
   const [formCommandeId, setFormCommandeId] = useState('');
@@ -71,6 +76,18 @@ export default function FacturationPage() {
         if (stored) setCfg(prev => ({ ...prev, ...JSON.parse(stored) }));
       } catch { }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Pré-ouverture depuis une commande (navigation state) ──
+  useEffect(() => {
+    const navState = location.state as { commandeId?: string; statutPrecedent?: string } | null;
+    if (!navState?.commandeId) return;
+    setLockedCommandeId(navState.commandeId);
+    setLockedCommandeStatutPrev(navState.statutPrecedent ?? 'confirme');
+    openModal();
+    setTimeout(() => handleSelectCommande(navState.commandeId!), 50);
+    window.history.replaceState({}, '');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -237,6 +254,17 @@ export default function FacturationPage() {
     setShowModal(true);
   };
 
+  // Fermer le modal et libérer la commande verrouillée si abandon
+  const closeModal = () => {
+    if (lockedCommandeId) {
+      if (USE_API) {
+        commandesApi.update(lockedCommandeId, { statut: lockedCommandeStatutPrev as any }).catch(() => {});
+      }
+      setLockedCommandeId(null);
+    }
+    setShowModal(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formClientId) return toast.error('Sélectionnez un client');
@@ -282,6 +310,8 @@ export default function FacturationPage() {
         } as Facture);
       }
       toast.success('Facture créée');
+      // Succès : libérer le verrou sans remettre le statut précédent
+      setLockedCommandeId(null);
       setShowModal(false);
     } catch {
       toast.error('Une erreur est survenue');
@@ -290,18 +320,40 @@ export default function FacturationPage() {
     }
   };
 
+  // ── Commandes en attente de facturation ──────────────────
+  const commandesEnAttente = commandes.filter(c =>
+    c.type === 'commande' &&
+    ['confirme', 'en_preparation', 'expedie', 'livre'].includes(c.statut) &&
+    !factures.some(f => f.commandeId === c.id)
+  );
   return (
     <div className="space-y-6 max-w-7xl">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <p className="text-[10px] font-mono tracking-widest uppercase mb-1" style={{ color: 'var(--color-ink-muted)' }}>Comptabilité</p>
           <h1 className="text-3xl font-bold" style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>Facturation</h1>
         </div>
         {canCreate && (
-          <button className="btn-primary" onClick={openModal}>
-            <Plus size={15} /> Nouvelle facture
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Bouton commandes en attente */}
+            <button
+              className="btn-secondary relative flex items-center gap-2 text-sm"
+              onClick={() => setShowQueueModal(true)}
+            >
+              <ClipboardList size={15} />
+              Commandes en attente
+              {commandesEnAttente.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full text-white text-[10px] font-bold flex items-center justify-center"
+                  style={{ backgroundColor: 'var(--color-gold)' }}>
+                  {commandesEnAttente.length}
+                </span>
+              )}
+            </button>
+            <button className="btn-primary flex items-center gap-2" onClick={openModal}>
+              <Plus size={15} /> Nouvelle facture
+            </button>
+          </div>
         )}
       </div>
 
@@ -421,6 +473,86 @@ export default function FacturationPage() {
         />
       </div>
 
+      {/* Modal Commandes en attente */}
+      {showQueueModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowQueueModal(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-5 border-b" style={{ borderColor: 'var(--color-cream-dark)' }}>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'var(--color-gold-pale)', color: 'var(--color-gold)' }}>
+                  <ClipboardList size={18} />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg" style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
+                    Commandes en attente
+                  </h3>
+                  <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+                    {commandesEnAttente.length === 0
+                      ? 'Aucune commande à facturer'
+                      : `${commandesEnAttente.length} commande${commandesEnAttente.length > 1 ? 's' : ''} prête${commandesEnAttente.length > 1 ? 's' : ''} à facturer`}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setShowQueueModal(false)} style={{ color: 'var(--color-ink-muted)' }}><X size={18} /></button>
+            </div>
+
+            {/* Liste */}
+            <div className="divide-y max-h-[60vh] overflow-y-auto" style={{ borderColor: 'var(--color-cream-dark)' }}>
+              {commandesEnAttente.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-14 gap-2">
+                  <ClipboardList size={36} style={{ color: 'var(--color-ink-muted)', opacity: 0.3 }} />
+                  <p className="text-sm font-medium" style={{ color: 'var(--color-ink-muted)' }}>Aucune commande en attente</p>
+                  <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+                    Les commandes confirmées/livrées sans facture apparaissent ici
+                  </p>
+                </div>
+              ) : commandesEnAttente.map(cmd => (
+                <div key={cmd.id} className="flex items-center gap-4 px-6 py-4 hover:bg-amber-50/40 transition-colors">
+                  {/* Numéro */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono font-bold text-sm" style={{ color: 'var(--color-ink)' }}>{cmd.numero}</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase"
+                        style={{ backgroundColor: 'var(--color-gold-pale)', color: 'var(--color-gold)' }}>
+                        {cmd.statut.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
+                      {cmd.clientNom} · {formatPrice(cmd.totalTTC)}
+                      {cmd.acompte > 0 && ` · Acompte ${formatPrice(cmd.acompte)}`}
+                    </p>
+                    {cmd.lignes.length > 0 && (
+                      <p className="text-[10px] mt-0.5 truncate" style={{ color: 'var(--color-ink-muted)' }}>
+                        {cmd.lignes.map(l => `${l.quantite}× ${l.produitNom}`).join(', ')}
+                      </p>
+                    )}
+                  </div>
+                  {/* Action */}
+                  <button
+                    onClick={() => {
+                      // Verrouiller la commande
+                      if (USE_API) {
+                        commandesApi.update(cmd.id, { statut: 'en_facturation' as any }).catch(() => {});
+                      }
+                      setLockedCommandeId(cmd.id);
+                      setLockedCommandeStatutPrev(cmd.statut as string);
+                      setShowQueueModal(false);
+                      openModal();
+                      setTimeout(() => handleSelectCommande(cmd.id), 50);
+                    }}
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-white transition-colors"
+                    style={{ backgroundColor: 'var(--color-gold)' }}
+                  >
+                    <Plus size={13} /> Facturer
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal Nouvelle facture */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -429,7 +561,7 @@ export default function FacturationPage() {
               <h3 className="font-semibold text-lg" style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
                 Nouvelle facture
               </h3>
-              <button onClick={() => setShowModal(false)} style={{ color: 'var(--color-ink-muted)' }}><X size={18} /></button>
+              <button onClick={() => closeModal()} style={{ color: 'var(--color-ink-muted)' }}><X size={18} /></button>
             </div>
 
             <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
@@ -558,7 +690,7 @@ export default function FacturationPage() {
               </div>
 
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowModal(false)} className="btn-secondary flex-1">Annuler</button>
+                <button type="button" onClick={() => closeModal()} className="btn-secondary flex-1">Annuler</button>
                 <button type="submit" disabled={loading} className="btn-primary flex-1">
                   {loading ? 'Enregistrement…' : 'Créer la facture'}
                 </button>

@@ -16,6 +16,7 @@ export const typeClientEnum = pgEnum('type_client', ['particulier', 'entreprise'
 export const statutCommandeEnum = pgEnum('statut_commande', [
   'brouillon', 'envoye', 'confirme', 'en_preparation',
   'expedie', 'livre', 'annule', 'accepte', 'refuse', 'expire',
+  'en_caisse', 'en_facturation',
 ]);
 
 export const typeCommandeEnum = pgEnum('type_commande', ['commande', 'devis']);

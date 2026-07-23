@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, ShoppingCart, CheckCircle, Package, ArrowRight } from 'lucide-react';
+import { ArrowLeft, FileText, ShoppingCart, CheckCircle, Package, ArrowRight, CreditCard, Receipt } from 'lucide-react';
 import clsx from 'clsx';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
@@ -250,19 +250,139 @@ export default function CommandeDetailPage() {
           <p className="text-sm font-medium text-red-600">Cette commande a été annulée.</p>
         </div>
       )}
-      {!isDevis && canEdit && commande.statut === 'livre' && (
-        <div className="card p-4 border-l-4" style={{ borderLeftColor: '#16a34a' }}>
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium" style={{ color: '#16a34a' }}>Commande livrée avec succès.</p>
-            {commande.resteAPayer > 0 && (
+
+      {/* ── Envoyer en caisse ou en facturation ────────────── */}
+      {!isDevis && canEdit && ['confirme', 'en_preparation', 'expedie', 'livre'].includes(commande.statut) && (
+        <div className="card p-5 border-l-4" style={{ borderLeftColor: 'var(--color-gold)' }}>
+          <p className="text-sm font-semibold mb-1" style={{ color: 'var(--color-ink)' }}>
+            Traitement de la commande
+          </p>
+          <p className="text-xs mb-4" style={{ color: 'var(--color-ink-muted)' }}>
+            Envoyez cette commande en caisse pour un encaissement immédiat, ou créez une facture formelle avec délai de paiement.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {/* Envoyer en caisse */}
+            <button
+              className="btn-primary flex items-center gap-2 text-sm"
+              disabled={updating}
+              onClick={async () => {
+                // Verrouiller la commande
+                try {
+                  if (USE_API) {
+                    const updated = await commandesApi.update(commande.id, { statut: 'en_caisse' as Commande['statut'] });
+                    updateCommande(commande.id, updated);
+                  } else {
+                    updateCommande(commande.id, { statut: 'en_caisse' as Commande['statut'], updatedAt: new Date() });
+                  }
+                } catch { /* non bloquant */ }
+                navigate('/pos', {
+                  state: {
+                    commandeId: commande.id,
+                    commandeNumero: commande.numero,
+                    statutPrecedent: commande.statut,
+                    clientId: commande.clientId,
+                    clientNom: commande.clientNom,
+                    lignes: commande.lignes,
+                    remiseGlobale: commande.remiseGlobale,
+                    tva: commande.tva,
+                  },
+                });
+              }}
+            >
+              <CreditCard size={15} />
+              Envoyer en caisse
+            </button>
+
+            {/* Créer la facture */}
+            <button
+              className="btn-secondary flex items-center gap-2 text-sm"
+              disabled={updating}
+              onClick={async () => {
+                try {
+                  if (USE_API) {
+                    const updated = await commandesApi.update(commande.id, { statut: 'en_facturation' as Commande['statut'] });
+                    updateCommande(commande.id, updated);
+                  } else {
+                    updateCommande(commande.id, { statut: 'en_facturation' as Commande['statut'], updatedAt: new Date() });
+                  }
+                } catch { /* non bloquant */ }
+                navigate('/facturation', {
+                  state: {
+                    commandeId: commande.id,
+                    statutPrecedent: commande.statut,
+                  },
+                });
+              }}
+            >
+              <Receipt size={15} />
+              Créer la facture
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Commande verrouillée en caisse par un autre utilisateur */}
+      {!isDevis && commande.statut === 'en_caisse' && (
+        <div className="card p-5 border-l-4" style={{ borderLeftColor: '#f59e0b' }}>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <p className="text-sm font-semibold" style={{ color: '#d97706' }}>🔒 Commande en cours d'encaissement</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--color-ink-muted)' }}>
+                Cette commande est actuellement ouverte en caisse.
+              </p>
+            </div>
+            {canEdit && (
               <button
-                className="btn-primary text-xs py-1.5"
-                onClick={() => navigate(`/facturation`)}
+                className="btn-secondary text-xs"
+                disabled={updating}
+                onClick={() => handleUpdateStatut('confirme')}
               >
-                <FileText size={13} /> Créer la facture
+                Libérer
               </button>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Commande verrouillée en facturation */}
+      {!isDevis && commande.statut === 'en_facturation' && (
+        <div className="card p-5 border-l-4" style={{ borderLeftColor: '#3b82f6' }}>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <p className="text-sm font-semibold" style={{ color: '#2563eb' }}>🔒 Commande en cours de facturation</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--color-ink-muted)' }}>
+                Cette commande est actuellement ouverte dans le module facturation.
+              </p>
+            </div>
+            {canEdit && (
+              <button
+                className="btn-secondary text-xs"
+                disabled={updating}
+                onClick={() => handleUpdateStatut('confirme')}
+              >
+                Libérer
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Devis accepté → créer commande ou facture */}
+      {isDevis && canEdit && commande.statut === 'accepte' && (
+        <div className="card p-5 border-l-4" style={{ borderLeftColor: '#16a34a' }}>
+          <p className="text-sm font-semibold mb-1" style={{ color: '#16a34a' }}>
+            Devis accepté
+          </p>
+          <p className="text-xs mb-4" style={{ color: 'var(--color-ink-muted)' }}>
+            Le client a accepté le devis. Vous pouvez maintenant créer la facture correspondante.
+          </p>
+          <button
+            className="btn-primary flex items-center gap-2 text-sm"
+            onClick={() => navigate('/facturation', { state: { commandeId: commande.id } })}
+          >
+            <Receipt size={15} />
+            Créer la facture
+          </button>
         </div>
       )}
     </div>

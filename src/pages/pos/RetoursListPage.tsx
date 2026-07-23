@@ -1,14 +1,19 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  RotateCcw, Search, SlidersHorizontal, ArrowLeft,
-  CalendarDays, PackageX,
+  RotateCcw, Search, ArrowLeft, PackageX,
+  Calendar, Filter, User, X, RefreshCw,
 } from 'lucide-react';
 import clsx from 'clsx';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import toast from 'react-hot-toast';
 import { retoursApi, USE_API } from '@/lib/api';
-import { formatPrice, formatDate } from '@/lib/format';
+import { formatPrice } from '@/lib/format';
 import type { RetourClient, RemboursementMode } from '@/types';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
+import { SortableHeader } from '@/components/ui/SortableHeader';
 
 // ── Mock data (demo mode) ─────────────────────────────────
 const MOCK_RETOURS: RetourClient[] = [
@@ -85,31 +90,31 @@ export default function RetoursListPage() {
   const [modeFilter, setModeFilter] = useState<string>('tous');
   const [dateDebut, setDateDebut]   = useState('');
   const [dateFin, setDateFin]       = useState('');
-  const [showFilters, setShowFilters] = useState(false);
 
   // ── Load data ─────────────────────────────────────────
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      try {
-        if (USE_API) {
-          const data = await retoursApi.list({
-            start:  dateDebut || undefined,
-            end:    dateFin   || undefined,
-            mode:   modeFilter !== 'tous' ? modeFilter : undefined,
-          });
-          // Coerce dates
-          setRetours(data.map(r => ({ ...r, createdAt: new Date(r.createdAt) })));
-        } else {
-          setRetours(MOCK_RETOURS);
-        }
-      } catch (e: any) {
-        toast.error(e.message || 'Erreur lors du chargement des retours');
-      } finally {
-        setLoading(false);
+  const loadRetours = async () => {
+    setLoading(true);
+    try {
+      if (USE_API) {
+        const data = await retoursApi.list({
+          start:  dateDebut || undefined,
+          end:    dateFin   || undefined,
+          mode:   modeFilter !== 'tous' ? modeFilter : undefined,
+        });
+        // Coerce dates
+        setRetours(data.map(r => ({ ...r, createdAt: new Date(r.createdAt) })));
+      } else {
+        setRetours(MOCK_RETOURS);
       }
+    } catch (e: any) {
+      toast.error(e.message || 'Erreur lors du chargement des retours');
+    } finally {
+      setLoading(false);
     }
-    load();
+  };
+
+  useEffect(() => {
+    loadRetours();
   }, [dateDebut, dateFin, modeFilter]);
 
   // ── Client-side text filter ───────────────────────────
@@ -126,6 +131,12 @@ export default function RetoursListPage() {
   // ── KPIs ──────────────────────────────────────────────
   const totalMontant  = filtered.reduce((s, r) => s + r.totalTTC, 0);
   const totalNombre   = filtered.length;
+
+  const table = useTableControls(filtered, {
+    defaultSort: 'createdAt',
+    defaultDirection: 'desc',
+    defaultPageSize: 20,
+  });
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -194,18 +205,14 @@ export default function RetoursListPage() {
       </div>
 
       {/* ── Filters ─────────────────────────────────────── */}
-      <div className="card space-y-4">
-        <div className="flex items-center gap-3 flex-wrap">
+      <div className="bg-white p-4 rounded-2xl border shadow-sm space-y-3" style={{ borderColor: 'var(--color-cream-dark)' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-center">
           {/* Search */}
-          <div className="relative flex-1 min-w-48">
-            <Search
-              size={15}
-              className="absolute left-3 top-1/2 -translate-y-1/2"
-              style={{ color: 'var(--color-ink-muted)' }}
-            />
+          <div className="relative">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
               type="text"
-              className="input pl-9 w-full"
+              className="input pl-10 text-xs w-full"
               placeholder="Chercher par client ou n° facture…"
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -213,64 +220,59 @@ export default function RetoursListPage() {
           </div>
 
           {/* Mode filter */}
-          <select
-            className="input w-48"
-            value={modeFilter}
-            onChange={e => setModeFilter(e.target.value)}
-          >
-            <option value="tous">Tous les modes</option>
-            <option value="especes">Espèces</option>
-            <option value="credit_reduc">Réduction dette</option>
-            <option value="avoir">Avoir</option>
-          </select>
+          <div className="relative">
+            <Filter size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <select
+              className="input pl-9 text-xs w-full bg-white cursor-pointer pr-8"
+              value={modeFilter}
+              onChange={e => setModeFilter(e.target.value)}
+            >
+              <option value="tous">Tous les modes</option>
+              <option value="especes">Espèces</option>
+              <option value="credit_reduc">Réduction dette</option>
+              <option value="avoir">Avoir</option>
+            </select>
+          </div>
 
-          {/* Toggle date filters */}
-          <button
-            onClick={() => setShowFilters(v => !v)}
-            className={clsx(
-              'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-colors',
-              showFilters
-                ? 'border-amber-400 text-amber-700 bg-amber-50'
-                : 'border-gray-200 text-gray-500 hover:border-gray-300',
-            )}
-          >
-            <SlidersHorizontal size={14} />
-            Dates
-          </button>
-        </div>
+          {/* Placeholder col for alignment */}
+          <div />
 
-        {showFilters && (
-          <div className="flex items-center gap-3 flex-wrap pt-1 border-t" style={{ borderColor: 'var(--color-cream-dark)' }}>
-            <div className="flex items-center gap-2">
-              <CalendarDays size={14} style={{ color: 'var(--color-ink-muted)' }} />
-              <label className="text-xs font-medium" style={{ color: 'var(--color-ink-muted)' }}>Du</label>
+          {/* Date range + refresh */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 flex items-center gap-1 bg-gray-50 px-2.5 py-1.5 rounded-xl border border-gray-200 text-xs min-w-0">
+              <Calendar size={13} className="text-gray-400 shrink-0" />
+              <span className="text-gray-400 text-[10px] uppercase font-mono shrink-0">Du</span>
               <input
                 type="date"
-                className="input text-sm"
+                className="bg-transparent text-[11px] font-medium text-gray-800 outline-none w-full min-w-0"
                 value={dateDebut}
                 onChange={e => setDateDebut(e.target.value)}
               />
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-medium" style={{ color: 'var(--color-ink-muted)' }}>Au</label>
+              <span className="text-gray-400 text-[10px] uppercase font-mono shrink-0">Au</span>
               <input
                 type="date"
-                className="input text-sm"
+                className="bg-transparent text-[11px] font-medium text-gray-800 outline-none w-full min-w-0"
                 value={dateFin}
                 onChange={e => setDateFin(e.target.value)}
               />
+              {(dateDebut || dateFin) && (
+                <button
+                  onClick={() => { setDateDebut(''); setDateFin(''); }}
+                  className="text-gray-400 hover:text-gray-600 ml-0.5 shrink-0"
+                >
+                  <X size={13} />
+                </button>
+              )}
             </div>
-            {(dateDebut || dateFin) && (
-              <button
-                className="text-xs underline"
-                style={{ color: 'var(--color-ink-muted)' }}
-                onClick={() => { setDateDebut(''); setDateFin(''); }}
-              >
-                Réinitialiser
-              </button>
-            )}
+            <button
+              onClick={loadRetours}
+              className="btn-secondary text-xs p-2 shrink-0 h-[38px] w-[38px] flex items-center justify-center"
+              title="Rafraîchir"
+            >
+              <RefreshCw size={14} className={clsx(loading && 'animate-spin')} />
+            </button>
           </div>
-        )}
+        </div>
       </div>
 
       {/* ── Table ───────────────────────────────────────── */}
@@ -297,31 +299,29 @@ export default function RetoursListPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--color-cream-dark)', backgroundColor: 'var(--color-cream)' }}>
-                  {['Date & heure', 'N° Facture', 'Client', 'Articles retournés', 'Montant', 'Remboursement', 'Opérateur'].map(h => (
-                    <th
-                      key={h}
-                      className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                      style={{ color: 'var(--color-ink-muted)' }}
-                    >
-                      {h}
-                    </th>
-                  ))}
+                  <SortableHeader column="createdAt"          label="Date & heure"      sort={table.sort} onSort={table.setSort} />
+                  <SortableHeader column="factureNumero"      label="N° Facture"         sort={table.sort} onSort={table.setSort} />
+                  <SortableHeader column="clientNom"          label="Client"             sort={table.sort} onSort={table.setSort} />
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-ink-muted)' }}>Articles retournés</th>
+                  <SortableHeader column="totalTTC"           label="Montant"            sort={table.sort} onSort={table.setSort} align="right" />
+                  <SortableHeader column="remboursementMode"  label="Remboursement"      sort={table.sort} onSort={table.setSort} align="center" />
+                  <SortableHeader column="utilisateurNom"     label="Opérateur"          sort={table.sort} onSort={table.setSort} />
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((retour, i) => (
+                {table.paginatedData.map((retour, i) => (
                   <tr
                     key={retour.id}
                     className="transition-colors"
                     style={{
-                      borderBottom: i < filtered.length - 1 ? '1px solid var(--color-cream-dark)' : undefined,
+                      borderBottom: i < table.paginatedData.length - 1 ? '1px solid var(--color-cream-dark)' : undefined,
                     }}
                     onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--color-cream)')}
                     onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
                   >
                     {/* Date */}
-                    <td className="px-4 py-3 whitespace-nowrap" style={{ color: 'var(--color-ink-muted)' }}>
-                      {formatDate(retour.createdAt)}
+                    <td className="px-4 py-3 whitespace-nowrap font-mono text-[11px]" style={{ color: 'var(--color-ink-muted)' }}>
+                      {format(retour.createdAt, 'dd/MM/yyyy HH:mm', { locale: fr })}
                     </td>
 
                     {/* N° facture */}
@@ -370,6 +370,14 @@ export default function RetoursListPage() {
                 ))}
               </tbody>
             </table>
+            <Pagination
+              page={table.page}
+              totalPages={table.totalPages}
+              totalItems={table.totalItems}
+              pageSize={table.pageSize}
+              onPageChange={table.setPage}
+              onPageSizeChange={table.setPageSize}
+            />
           </div>
         </div>
       )}

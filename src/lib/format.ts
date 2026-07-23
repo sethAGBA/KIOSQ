@@ -44,6 +44,8 @@ export function statutColor(statut: string): string {
     accepte: 'badge-success',
     refuse: 'badge-danger',
     expire: 'badge-neutral',
+    en_caisse: 'badge-warning',
+    en_facturation: 'badge-info',
     // factures
     envoyee: 'badge-info',
     payee: 'badge-success',
@@ -73,6 +75,8 @@ export function statutLabel(statut: string): string {
     accepte: 'Accepté',
     refuse: 'Refusé',
     expire: 'Expiré',
+    en_caisse: '🔒 En caisse',
+    en_facturation: '🔒 En facturation',
     envoyee: 'Envoyée',
     payee: 'Payée',
     partielle: 'Paiement partiel',

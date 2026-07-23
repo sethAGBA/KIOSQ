@@ -7,7 +7,7 @@ import { requireTenantAuth, handleOptions } from '../_lib/auth.js';
 import { ok, err, numericRow, parseBody} from '../_lib/response.js';
 
 const PatchSchema = z.object({
-  statut:           z.enum(['brouillon','envoye','confirme','en_preparation','expedie','livre','annule','accepte','refuse','expire']).optional(),
+  statut:           z.enum(['brouillon','envoye','confirme','en_preparation','expedie','livre','annule','accepte','refuse','expire','en_caisse','en_facturation']).optional(),
   acompte:          z.number().optional(),
   dateLivraison:    z.string().optional(),
   adresseLivraison: z.string().optional(),

@@ -45,8 +45,9 @@ export default function CommandesPage() {
   const [formType, setFormType] = useState<FormType>('commande');
   const [loading, setLoading] = useState(false);
 
-  const [formClientId, setFormClientId] = useState('');
-  const [formTva, setFormTva] = useState(18);
+  const [formClientId, setFormClientId] = useState('anonyme');
+  const [formTva, setFormTva] = useState(0);
+  const [appliquerTVA, setAppliquerTVA] = useState(false);
   const [formRemiseGlobale, setFormRemiseGlobale] = useState(0);
   const [formAcompte, setFormAcompte] = useState(0);
   const [formNotes, setFormNotes] = useState('');
@@ -113,8 +114,9 @@ export default function CommandesPage() {
 
   const openModal = (type: FormType) => {
     setFormType(type);
-    setFormClientId('');
-    setFormTva(18);
+    setFormClientId('anonyme');  // anonyme par défaut
+    setFormTva(0);
+    setAppliquerTVA(false);
     setFormRemiseGlobale(0);
     setFormAcompte(0);
     setFormNotes('');
@@ -126,15 +128,20 @@ export default function CommandesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formClientId) return toast.error('Sélectionnez un client');
     const validLignes = lignes.filter(l => l.produitId && l.quantite > 0);
     if (validLignes.length === 0) return toast.error('Ajoutez au moins un produit');
+
+    // Résoudre le nom du client
+    const isAnonymous = !formClientId || formClientId === 'anonyme';
+    const clientNomResolu = isAnonymous
+      ? 'Client anonyme'
+      : (clients.find(c => c.id === formClientId)?.nom ?? 'Client anonyme');
 
     setLoading(true);
     try {
       const payload = {
         type: formType,
-        clientId: formClientId,
+        clientId: isAnonymous ? undefined : formClientId,
         lignes: validLignes,
         totalHT,
         remiseGlobale: formRemiseGlobale,
@@ -150,12 +157,11 @@ export default function CommandesPage() {
         const created = await commandesApi.create(payload);
         addCommande(created);
       } else {
-        const client = clients.find(c => c.id === formClientId);
         addCommande({
           ...payload,
           id: `cmd-${Date.now()}`,
           numero: `${formType === 'devis' ? 'DEV' : 'CMD'}-${new Date().getFullYear()}-${String(commandes.length + 1).padStart(3, '0')}`,
-          clientNom: client?.nom ?? '',
+          clientNom: clientNomResolu,
           commercial: user?.nom ?? '',
           statut: 'brouillon',
           resteAPayer,
@@ -332,13 +338,15 @@ export default function CommandesPage() {
             <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
               {/* Client */}
               <div>
-                <label className="label">Client *</label>
+                <label className="label">Client <span style={{ color: 'var(--color-ink-muted)', fontWeight: 400 }}>(optionnel)</span></label>
                 <SearchableSelect
-                  required
-                  options={clients.filter(c => c.actif).map(c => ({ value: c.id, label: c.nom }))}
+                  options={[
+                    { value: 'anonyme', label: 'Client anonyme' },
+                    ...clients.filter(c => c.actif).map(c => ({ value: c.id, label: c.nom })),
+                  ]}
                   value={formClientId}
-                  onChange={val => setFormClientId(val)}
-                  emptyLabel="Sélectionner un client…"
+                  onChange={val => setFormClientId(val || 'anonyme')}
+                  emptyLabel="Client anonyme"
                   placeholder="Rechercher un client…"
                 />
               </div>
@@ -424,10 +432,22 @@ export default function CommandesPage() {
 
               {/* Conditions financières */}
               <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="label">TVA (%)</label>
-                  <input type="number" min="0" max="100" className="input" value={formTva}
-                    onChange={e => setFormTva(+e.target.value)} />
+                <div className="flex flex-col justify-end">
+                  <label className="flex items-center gap-2 cursor-pointer select-none py-2">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 rounded border-gray-300 cursor-pointer"
+                      style={{ accentColor: 'var(--color-gold)' }}
+                      checked={appliquerTVA}
+                      onChange={e => {
+                        setAppliquerTVA(e.target.checked);
+                        setFormTva(e.target.checked ? 18 : 0);
+                      }}
+                    />
+                    <span className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
+                      Appliquer TVA <span className="font-bold" style={{ color: 'var(--color-gold)' }}>18%</span>
+                    </span>
+                  </label>
                 </div>
                 <div>
                   <label className="label">Remise globale (%)</label>
@@ -468,10 +488,12 @@ export default function CommandesPage() {
                   <span style={{ color: 'var(--color-ink-muted)' }}>Total HT</span>
                   <span style={{ color: 'var(--color-ink)' }}>{formatPrice(totalHT)}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span style={{ color: 'var(--color-ink-muted)' }}>TVA ({formTva}%)</span>
-                  <span style={{ color: 'var(--color-ink)' }}>{formatPrice(totalTTC - totalHT)}</span>
-                </div>
+                {appliquerTVA && (
+                  <div className="flex justify-between text-sm">
+                    <span style={{ color: 'var(--color-ink-muted)' }}>TVA (18%)</span>
+                    <span style={{ color: 'var(--color-ink)' }}>{formatPrice(totalTTC - totalHT)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between font-bold text-base pt-2" style={{ borderTop: '1px solid var(--color-cream-dark)', color: 'var(--color-ink)' }}>
                   <span>Total TTC</span>
                   <span style={{ color: 'var(--color-gold)' }}>{formatPrice(totalTTC)}</span>
