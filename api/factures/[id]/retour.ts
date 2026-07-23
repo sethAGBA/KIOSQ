@@ -1,8 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { nanoid } from 'nanoid';
 import { getDb } from '../../../db/client.js';
-import { factures, produits } from '../../../db/schema.js';
+import { factures, produits, retoursClients } from '../../../db/schema.js';
 import { requireTenantAuth, handleOptions } from '../../_lib/auth.js';
 import { ok, err, numericRow, parseBody} from '../../_lib/response.js';
 import { logAction } from '../../_lib/auditLog.js';
@@ -121,6 +122,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
       .where(and(eq(factures.id, id), eq(factures.tenantId, ctx.tenantId!)))
       .returning();
+
+    // ── 6. Persist the return as a dedicated retours_clients row ──────────────
+    const lignesRetourPersistees = lignesRetour.map(l => ({
+      designation:  l.designation,
+      quantite:     l.quantite,
+      prixUnitaire: l.prixUnitaire,
+      total:        l.quantite * l.prixUnitaire,
+    }));
+
+    const utilisateurNom = ctx.nom
+      ? `${ctx.prenom ?? ''} ${ctx.nom}`.trim()
+      : ctx.email;
+
+    await db.insert(retoursClients).values({
+      id:                nanoid(),
+      tenantId:          ctx.tenantId!,
+      factureId:         id,
+      factureNumero:     facture.numero,
+      clientId:          facture.clientId,
+      clientNom:         facture.clientNom,
+      lignes:            lignesRetourPersistees,
+      totalTTC:          String(montantRetour),
+      motif,
+      remboursementMode,
+      utilisateurId:     ctx.sub,
+      utilisateurNom,
+      createdAt:         new Date(),
+    });
 
     await logAction(db, ctx.tenantId!, ctx.sub, 'facture.updated', 'facture', id);
 

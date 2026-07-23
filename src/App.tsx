@@ -44,6 +44,8 @@ import POSPage from '@/pages/pos/POSPage';
 import HistoriqueVentesPage from '@/pages/pos/HistoriqueVentesPage';
 import SortiesCaissePage from '@/pages/pos/SortiesCaissePage';
 import ClotureCaissePage from '@/pages/pos/ClotureCaissePage';
+import RetourClientPage from '@/pages/pos/RetourClientPage';
+import RetoursListPage from '@/pages/pos/RetoursListPage';
 import LeadsPage from '@/pages/leads/LeadsPage';
 import LeadDetailPage from '@/pages/leads/LeadDetailPage';
 
@@ -137,6 +139,8 @@ export default function App() {
           <Route path="/pos/sorties" element={<SortiesCaissePage />} />
           <Route path="/rapports/sorties" element={<SortiesCaissePage />} />
           <Route path="/pos/cloture" element={<ClotureCaissePage />} />
+          <Route path="/pos/retour" element={<RetourClientPage />} />
+          <Route path="/retours" element={<RetoursListPage />} />
           <Route path="/rapports/cloture" element={<ClotureCaissePage />} />
 
           {/* Leads */}

@@ -391,6 +391,31 @@ export interface SortieCaisse {
   createdAt: Date;
 }
 
+// ── Retour Client ─────────────────────────────────────────
+export type RemboursementMode = 'especes' | 'credit_reduc' | 'avoir';
+
+export interface LigneRetourClient {
+  designation: string;
+  quantite: number;
+  prixUnitaire: number;
+  total: number;
+}
+
+export interface RetourClient {
+  id: string;
+  factureId: string;
+  factureNumero: string;
+  clientId: string;
+  clientNom: string;
+  lignes: LigneRetourClient[];
+  totalTTC: number;
+  motif: string;
+  remboursementMode: RemboursementMode;
+  utilisateurId?: string;
+  utilisateurNom?: string;
+  createdAt: Date;
+}
+
 // ── Clôture de Caisse (Rapport Z) ───────────────────────
 export interface ClotureCaisse {
   id: string;

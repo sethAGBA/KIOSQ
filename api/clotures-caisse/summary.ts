@@ -25,8 +25,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Fetch today's sales
     const commandeConditions: any[] = [
-      gte(commandes.date, startToday),
-      lte(commandes.date, endToday),
+      gte(commandes.dateCommande, startToday),
+      lte(commandes.dateCommande, endToday),
     ];
     if (ctx.role !== 'superadmin') {
       commandeConditions.push(eq(commandes.tenantId, tenantId));
@@ -69,7 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     todayCommandes.forEach(c => {
       const montant = Number(c.totalTTC);
       totalVentes += montant;
-      const mode = (c.modePaiement || 'especes').toLowerCase();
+      const mode = ((c as any).modePaiement || 'especes').toLowerCase();
 
       if (mode === 'especes' || mode === 'espèces' || mode === 'cash') {
         repartition.especes += montant;

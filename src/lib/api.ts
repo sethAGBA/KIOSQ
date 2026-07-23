@@ -208,6 +208,26 @@ export const sortiesCaisseApi = {
     post<import('@/types').SortieCaisse>('/api/sorties-caisse', data),
 };
 
+// ── Retours Clients ───────────────────────────────────────
+export const retoursApi = {
+  list: (params?: {
+    start?: string;
+    end?: string;
+    mode?: string;
+    utilisateurId?: string;
+    q?: string;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.start)         qs.set('start',         params.start);
+    if (params?.end)           qs.set('end',           params.end);
+    if (params?.mode)          qs.set('mode',          params.mode);
+    if (params?.utilisateurId) qs.set('utilisateurId', params.utilisateurId);
+    if (params?.q)             qs.set('q',             params.q);
+    const query = qs.toString();
+    return get<import('@/types').RetourClient[]>(`/api/retours-clients${query ? `?${query}` : ''}`);
+  },
+};
+
 // ── Clôtures de caisse (Rapport Z) ───────────────────────
 export const cloturesCaisseApi = {
   list: (params?: { start?: string; end?: string; utilisateurId?: string }) => {

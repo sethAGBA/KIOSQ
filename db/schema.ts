@@ -30,7 +30,8 @@ export const statutCFEnum = pgEnum('statut_commande_fournisseur', [
 
 export const statutGroupeEnum = pgEnum('statut_groupe', ['actif', 'inactif', 'erreur']);
 export const statutLeadEnum   = pgEnum('statut_lead',   ['nouveau', 'envoye', 'ignore']);
-export const typeMouvementEnum = pgEnum('type_mouvement', ['entree', 'sortie', 'usage_interne', 'ajustement']);
+export const typeMouvementEnum        = pgEnum('type_mouvement',          ['entree', 'sortie', 'usage_interne', 'ajustement']);
+export const remboursementModeEnum    = pgEnum('remboursement_mode',       ['especes', 'credit_reduc', 'avoir']);
 
 // ── Tenants ───────────────────────────────────────────────
 export const tenants = pgTable('tenants', {
@@ -370,6 +371,23 @@ export const sortiesCaisse = pgTable('sorties_caisse', {
   createdAt:      timestamp('created_at').notNull().defaultNow(),
 });
 
+// ── Retours Clients ───────────────────────────────────────
+export const retoursClients = pgTable('retours_clients', {
+  id:                text('id').primaryKey(),
+  tenantId:          text('tenant_id').notNull().references(() => tenants.id),
+  factureId:         text('facture_id').notNull().references(() => factures.id),
+  factureNumero:     text('facture_numero').notNull(),
+  clientId:          text('client_id').notNull().references(() => clients.id),
+  clientNom:         text('client_nom').notNull(),
+  lignes:            jsonb('lignes').notNull().default([]),  // { produitId?, designation, quantite, prixUnitaire, total }[]
+  totalTTC:          numeric('total_ttc', { precision: 15, scale: 2 }).notNull().default('0'),
+  motif:             text('motif').notNull(),
+  remboursementMode: remboursementModeEnum('remboursement_mode').notNull(),
+  utilisateurId:     text('utilisateur_id'),
+  utilisateurNom:    text('utilisateur_nom'),
+  createdAt:         timestamp('created_at').notNull().defaultNow(),
+});
+
 // ── Clôtures de Caisse (Rapport Z) ──────────────────────
 export const cloturesCaisse = pgTable('clotures_caisse', {
   id:               text('id').primaryKey(),
@@ -409,3 +427,4 @@ export type CatalogueTemplateRow   = typeof catalogueTemplates.$inferSelect;
 export type InventaireRow          = typeof inventaires.$inferSelect;
 export type SortieCaisseRow        = typeof sortiesCaisse.$inferSelect;
 export type ClotureCaisseRow       = typeof cloturesCaisse.$inferSelect;
+export type RetourClientRow        = typeof retoursClients.$inferSelect;

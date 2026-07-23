@@ -1,7 +1,8 @@
 import { useEffect, useState, useMemo } from 'react';
 import {
   Save, Wallet, Calculator, AlertTriangle, CheckCircle2, History,
-  RefreshCw, Calendar, Search, Filter, User, Eye, X, ArrowUpRight, TrendingDown
+  RefreshCw, Calendar, Search, User, Eye, X, ArrowUpRight, TrendingDown,
+  Banknote, Smartphone, CreditCard, FileWarning, MoreHorizontal,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -258,35 +259,45 @@ export default function ClotureCaissePage() {
 
               <div className="space-y-2.5 divide-y divide-gray-100">
                 <div className="flex items-center justify-between pt-1 text-xs">
-                  <span className="font-semibold text-gray-700">💵 Espèces (Cash)</span>
+                  <span className="font-semibold text-gray-700 flex items-center gap-2">
+                    <Banknote size={14} className="text-green-600 shrink-0" /> Espèces (Cash)
+                  </span>
                   <span className="font-bold text-gray-900 font-mono text-sm">
                     {formatPrice(summary.repartition.especes)}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between pt-2.5 text-xs">
-                  <span className="font-semibold text-gray-700">📱 Mobile Money (Wave, Orange, Free)</span>
+                  <span className="font-semibold text-gray-700 flex items-center gap-2">
+                    <Smartphone size={14} className="text-blue-600 shrink-0" /> Mobile Money (Wave, Orange, Free)
+                  </span>
                   <span className="font-bold text-gray-900 font-mono text-sm">
                     {formatPrice(summary.repartition.mobile_money)}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between pt-2.5 text-xs">
-                  <span className="font-semibold text-gray-700">💳 Carte Bancaire</span>
+                  <span className="font-semibold text-gray-700 flex items-center gap-2">
+                    <CreditCard size={14} className="text-purple-600 shrink-0" /> Carte Bancaire
+                  </span>
                   <span className="font-bold text-gray-900 font-mono text-sm">
                     {formatPrice(summary.repartition.carte)}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between pt-2.5 text-xs">
-                  <span className="font-semibold text-gray-700">📝 Crédit / Dette Client</span>
+                  <span className="font-semibold text-gray-700 flex items-center gap-2">
+                    <FileWarning size={14} className="text-amber-600 shrink-0" /> Crédit / Dette Client
+                  </span>
                   <span className="font-bold text-amber-700 font-mono text-sm">
                     {formatPrice(summary.repartition.credit)}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between pt-2.5 text-xs">
-                  <span className="font-semibold text-gray-700">🔄 Autre mode</span>
+                  <span className="font-semibold text-gray-700 flex items-center gap-2">
+                    <MoreHorizontal size={14} className="text-gray-400 shrink-0" /> Autre mode
+                  </span>
                   <span className="font-bold text-gray-900 font-mono text-sm">
                     {formatPrice(summary.repartition.autre)}
                   </span>

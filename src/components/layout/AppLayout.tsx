@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import {
   LayoutDashboard, Users, Package, ShoppingCart, FileText,
   Truck, BarChart3, Settings, Bell, LogOut, ChevronRight,
-  Menu, X, TrendingUp, UserCog, Store, AlertTriangle, Crosshair, Sparkles, RefreshCw,
+  Menu, X, TrendingUp, UserCog, Store, AlertTriangle, Crosshair, Sparkles, RefreshCw, Calculator, RotateCcw,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
@@ -24,25 +24,63 @@ type NavItem = {
   badge?: 'leadsNouveau';
 };
 
-const NAV: NavItem[] = [
-  { to: '/dashboard',    label: 'Tableau de bord', icon: LayoutDashboard, roles: ['admin','commercial','gestionnaire','comptable','lecteur'] },
-  { to: '/pos',          label: 'Ventes / Caisse', icon: Store,           roles: ['admin','commercial','gestionnaire'] },
-  { to: '/pos/sorties',  label: 'Sorties de Caisse', icon: Receipt,       roles: ['admin','commercial','gestionnaire','comptable'] },
-  { to: '/leads',        label: 'Leads',           icon: Crosshair,       roles: ['admin','commercial','gestionnaire'], badge: 'leadsNouveau' },
-  { to: '/clients',      label: 'Clients',          icon: Users,           roles: ['admin','commercial','gestionnaire','lecteur'] },
-  { to: '/produits',     label: 'Produits',         icon: Package,         roles: ['admin','commercial','gestionnaire','lecteur'] },
-  { to: '/stock',        label: 'Mouvements Stock', icon: RefreshCw,       roles: ['admin','commercial','gestionnaire','lecteur'] },
-  { to: '/stock/inventaire', label: 'Inventaires',     icon: ClipboardList,   roles: ['admin','commercial','gestionnaire','lecteur'] },
-  { to: '/templates',    label: 'Templates',        icon: Layers,          roles: ['admin','gestionnaire'] },
-  { to: '/commandes',    label: 'Commandes & Devis', icon: ShoppingCart,   roles: ['admin','commercial','gestionnaire','lecteur'] },
-  { to: '/facturation',  label: 'Facturation',       icon: FileText,       roles: ['admin','comptable','gestionnaire','lecteur'] },
-  { to: '/fournisseurs', label: 'Fournisseurs',      icon: Truck,          roles: ['admin','gestionnaire','comptable','lecteur'] },
-  { to: '/rapports',     label: 'Rapports',          icon: BarChart3,      roles: ['admin','comptable','gestionnaire'] },
-  { to: '/utilisateurs', label: 'Utilisateurs',      icon: UserCog,        roles: ['admin'] },
-  { to: '/configuration/magasins', label: 'Magasins', icon: Store,        roles: ['admin','gestionnaire'] },
-  { to: '/configuration/abonnement', label: 'Mon Abonnement', icon: ShieldCheck, roles: ['admin'] },
-  { to: '/configuration/audit', label: 'Journal d\'Audit', icon: History,    roles: ['admin'] },
-  { to: '/configuration',label: 'Configuration',     icon: Settings,       roles: ['admin'] },
+type NavSection = {
+  title: string;
+  items: NavItem[];
+};
+
+const NAV_SECTIONS: NavSection[] = [
+  {
+    title: '',
+    items: [
+      { to: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard, roles: ['admin','commercial','gestionnaire','comptable','lecteur'] },
+    ],
+  },
+  {
+    title: 'Caisse',
+    items: [
+      { to: '/pos',         label: 'Point de Vente',    icon: Store,      roles: ['admin','commercial','gestionnaire'] },
+      { to: '/pos/sorties', label: 'Sorties de Caisse', icon: Receipt,    roles: ['admin','commercial','gestionnaire','comptable'] },
+      { to: '/pos/cloture', label: 'Clôture (Rapport Z)', icon: Calculator, roles: ['admin','gestionnaire','comptable'] },
+      { to: '/pos/retour',  label: 'Retour Client',       icon: RotateCcw,  roles: ['admin','gestionnaire','commercial'] },
+      { to: '/retours',     label: 'Historique retours',  icon: History,    roles: ['admin','gestionnaire','comptable'] },
+    ],
+  },
+  {
+    title: 'Commercial',
+    items: [
+      { to: '/leads',    label: 'Leads',            icon: Crosshair,    roles: ['admin','commercial','gestionnaire'], badge: 'leadsNouveau' },
+      { to: '/clients',  label: 'Clients',           icon: Users,        roles: ['admin','commercial','gestionnaire','lecteur'] },
+      { to: '/commandes', label: 'Commandes & Devis', icon: ShoppingCart, roles: ['admin','commercial','gestionnaire','lecteur'] },
+      { to: '/facturation', label: 'Facturation',    icon: FileText,     roles: ['admin','comptable','gestionnaire','lecteur'] },
+    ],
+  },
+  {
+    title: 'Stock',
+    items: [
+      { to: '/produits',         label: 'Produits',          icon: Package,       roles: ['admin','commercial','gestionnaire','lecteur'] },
+      { to: '/stock',            label: 'Mouvements Stock',  icon: RefreshCw,     roles: ['admin','commercial','gestionnaire','lecteur'] },
+      { to: '/stock/inventaire', label: 'Inventaires',       icon: ClipboardList, roles: ['admin','commercial','gestionnaire','lecteur'] },
+      { to: '/fournisseurs',     label: 'Fournisseurs',       icon: Truck,         roles: ['admin','gestionnaire','comptable','lecteur'] },
+    ],
+  },
+  {
+    title: 'Analyse',
+    items: [
+      { to: '/rapports',   label: 'Rapports',   icon: BarChart3, roles: ['admin','comptable','gestionnaire'] },
+      { to: '/templates',  label: 'Templates',  icon: Layers,    roles: ['admin','gestionnaire'] },
+    ],
+  },
+  {
+    title: 'Administration',
+    items: [
+      { to: '/utilisateurs',             label: 'Utilisateurs',     icon: UserCog,    roles: ['admin'] },
+      { to: '/configuration/magasins',   label: 'Magasins',          icon: Store,      roles: ['admin','gestionnaire'] },
+      { to: '/configuration/abonnement', label: 'Mon Abonnement',    icon: ShieldCheck, roles: ['admin'] },
+      { to: '/configuration/audit',      label: 'Journal d\'Audit',  icon: History,    roles: ['admin'] },
+      { to: '/configuration',            label: 'Configuration',     icon: Settings,   roles: ['admin'] },
+    ],
+  },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -84,7 +122,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     navigate('/login');
   };
 
-  const navItems = NAV.filter((n) => user && (user.role === 'superadmin' || n.roles.includes(user.role as never)));
+  const navSections = NAV_SECTIONS.map(section => ({
+    ...section,
+    items: section.items.filter(n => user && (user.role === 'superadmin' || n.roles.includes(user.role as never))),
+  })).filter(section => section.items.length > 0);
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'var(--color-cream)' }}>
@@ -118,44 +159,56 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto custom-scrollbar">
-          {navItems.map(({ to, label, icon: Icon, badge }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                clsx(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all group',
-                  isActive
-                    ? 'text-white'
-                    : 'text-white/50 hover:text-white hover:bg-white/5'
-                )
-              }
-              style={({ isActive }) =>
-                isActive ? { backgroundColor: 'var(--color-gold)' } : {}
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <Icon size={16} className="shrink-0" />
-                  {sidebarOpen && (
-                    <>
-                      <span className="flex-1 truncate">{label}</span>
-                      {badge === 'leadsNouveau' && leadsNouveauCount > 0 && (
-                        <span
-                          className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center text-white"
-                          style={{ backgroundColor: '#f97316' }}
-                        >
-                          {leadsNouveauCount > 99 ? '99+' : leadsNouveauCount}
-                        </span>
-                      )}
-                      {isActive && !badge && <ChevronRight size={12} />}
-                      {isActive && badge && leadsNouveauCount === 0 && <ChevronRight size={12} />}
-                    </>
-                  )}
-                </>
+        <nav className="flex-1 px-2 py-4 space-y-4 overflow-y-auto custom-scrollbar">
+          {navSections.map((section) => (
+            <div key={section.title}>
+              {sidebarOpen && section.title && (
+                <p className="px-3 mb-1 text-[9px] font-black uppercase tracking-[0.15em]" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                  {section.title}
+                </p>
               )}
-            </NavLink>
+              <div className="space-y-0.5">
+                {section.items.map(({ to, label, icon: Icon, badge }) => (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    end={to === '/pos'}
+                    className={({ isActive }) =>
+                      clsx(
+                        'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all group',
+                        isActive
+                          ? 'text-white'
+                          : 'text-white/50 hover:text-white hover:bg-white/5'
+                      )
+                    }
+                    style={({ isActive }) =>
+                      isActive ? { backgroundColor: 'var(--color-gold)' } : {}
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <Icon size={16} className="shrink-0" />
+                        {sidebarOpen && (
+                          <>
+                            <span className="flex-1 truncate">{label}</span>
+                            {badge === 'leadsNouveau' && leadsNouveauCount > 0 && (
+                              <span
+                                className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center text-white"
+                                style={{ backgroundColor: '#f97316' }}
+                              >
+                                {leadsNouveauCount > 99 ? '99+' : leadsNouveauCount}
+                              </span>
+                            )}
+                            {isActive && !badge && <ChevronRight size={12} />}
+                            {isActive && badge && leadsNouveauCount === 0 && <ChevronRight size={12} />}
+                          </>
+                        )}
+                      </>
+                    )}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
 
