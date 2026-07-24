@@ -15,6 +15,7 @@ const DashboardSuperadminPage = lazy(() => import('@/pages/superadmin/DashboardS
 const BoutiquesPage            = lazy(() => import('@/pages/superadmin/BoutiquesPage'));
 const CreerBoutiquePage        = lazy(() => import('@/pages/superadmin/CreerBoutiquePage'));
 const BoutiqueDetailPage       = lazy(() => import('@/pages/superadmin/BoutiqueDetailPage'));
+const ProfilPage               = lazy(() => import('@/pages/superadmin/ProfilPage'));
 
 // Pages
 import DashboardPage from '@/pages/DashboardPage';
@@ -98,6 +99,11 @@ export default function App() {
           <Route path="boutiques/:id" element={
             <Suspense fallback={<SuperadminFallback />}>
               <BoutiqueDetailPage />
+            </Suspense>
+          } />
+          <Route path="profil" element={
+            <Suspense fallback={<SuperadminFallback />}>
+              <ProfilPage />
             </Suspense>
           } />
         </Route>

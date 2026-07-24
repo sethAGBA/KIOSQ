@@ -74,6 +74,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       prenom:            user.prenom,
       actif:             user.actif,
       tenantId:          user.tenantId ?? null,
+      avatar:            user.avatar ?? null,
       premiereConnexion: user.premiereConnexion,
       onboardingStep:    user.onboardingStep,
     });

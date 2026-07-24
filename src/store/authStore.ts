@@ -13,6 +13,7 @@ interface AuthState {
   logout: () => void;
   refreshMe: () => Promise<void>;
   setUser: (user: AppUser) => void;
+  updateProfile: (profile: { nom: string; prenom: string; email: string; telephone?: string | null; avatar?: string | null }) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -35,7 +36,10 @@ export const useAuthStore = create<AuthState>()(
             prenom:    data.prenom,
             role:      data.role as AppUser['role'],
             actif:     data.actif,
+            telephone: data.telephone,
+            avatar:    data.avatar,
             createdAt: new Date(),
+            tenantId:  data.tenantId,
           };
           set({ user, isAuthenticated: true });
         } else {
@@ -72,11 +76,43 @@ export const useAuthStore = create<AuthState>()(
             prenom:    data.prenom,
             role:      data.role as AppUser['role'],
             actif:     data.actif,
+            telephone: data.telephone,
+            avatar:    data.avatar,
             createdAt: new Date(),
+            tenantId:  data.tenantId,
           };
           set({ user, isAuthenticated: true });
         } catch {
           set({ user: null, isAuthenticated: false });
+        }
+      },
+
+      updateProfile: async (profile) => {
+        if (USE_API) {
+          const data = await authApi.updateProfile(profile);
+          const user: AppUser = {
+            id:        data.id,
+            email:     data.email,
+            nom:       data.nom,
+            prenom:    data.prenom,
+            role:      data.role as AppUser['role'],
+            telephone: data.telephone,
+            avatar:    data.avatar,
+            actif:     data.actif,
+            createdAt: new Date(),
+            tenantId:  data.tenantId,
+          };
+          set({ user });
+        } else {
+          // Mock profile update
+          const currentUser = useAuthStore.getState().user;
+          if (currentUser) {
+            const updated = {
+              ...currentUser,
+              ...profile,
+            };
+            set({ user: updated });
+          }
         }
       },
     }),
@@ -86,3 +122,6 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+// Expose the store on globalThis to avoid circular dependency when resolving tenant
+(globalThis as any).__authStoreModule = { useAuthStore };

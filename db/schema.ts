@@ -64,6 +64,7 @@ export const users = pgTable('users', {
   prenom:            text('prenom').notNull(),
   role:              userRoleEnum('role').notNull().default('lecteur'),
   telephone:         text('telephone'),
+  avatar:            text('avatar'),
   actif:             boolean('actif').notNull().default(true),
   tenantId:          text('tenant_id').references(() => tenants.id),
   premiereConnexion: boolean('premiere_connexion').notNull().default(true),

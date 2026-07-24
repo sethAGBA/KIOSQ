@@ -272,19 +272,41 @@ export function getTenantId(): string | null {
     // sessionStorage unavailable (e.g. SSR, private mode) — fall through
   }
 
-  // 2. Fall back to the Zustand tenantStore when available.
-  //    We use a dynamic require-style import so this file remains importable
-  //    before the store module is created (tasks 9.2+).  The try/catch also
-  //    handles the case where the store exists but hasn't been hydrated yet.
+  // 2. Check if superadmin is impersonating. If so, return the impersonated tenantId.
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const mod = (globalThis as any).__tenantStoreModule;
-    if (mod && typeof mod.useTenantStore?.getState === 'function') {
-      const state = mod.useTenantStore.getState();
+    const tenantMod = (globalThis as any).__tenantStoreModule;
+    if (tenantMod && typeof tenantMod.useTenantStore?.getState === 'function') {
+      const state = tenantMod.useTenantStore.getState();
+      if (state?.isImpersonating && typeof state.tenantId === 'string') {
+        return state.tenantId;
+      }
+    }
+  } catch {
+    // tenantStore not available
+  }
+
+  // 3. Fall back to the logged in user's tenantId in authStore
+  try {
+    const authMod = (globalThis as any).__authStoreModule;
+    if (authMod && typeof authMod.useAuthStore?.getState === 'function') {
+      const user = authMod.useAuthStore.getState().user;
+      if (user && typeof user.tenantId === 'string') {
+        return user.tenantId;
+      }
+    }
+  } catch {
+    // authStore not available
+  }
+
+  // 4. Fall back to the Zustand tenantStore default (e.g. 'tenant_demo')
+  try {
+    const tenantMod = (globalThis as any).__tenantStoreModule;
+    if (tenantMod && typeof tenantMod.useTenantStore?.getState === 'function') {
+      const state = tenantMod.useTenantStore.getState();
       if (typeof state?.tenantId === 'string') return state.tenantId;
     }
   } catch {
-    // store not available
+    // tenantStore not available
   }
 
   return null;

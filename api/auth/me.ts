@@ -23,6 +23,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       telephone: users.telephone,
       actif:     users.actif,
       createdAt: users.createdAt,
+      tenantId:  users.tenantId,
+      avatar:    users.avatar,
     }).from(users).where(eq(users.id, ctx.sub)).limit(1);
 
     if (!user) return err(res, 'Utilisateur introuvable', 404);

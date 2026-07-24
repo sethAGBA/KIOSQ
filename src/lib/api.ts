@@ -65,11 +65,15 @@ export const api = { get, post, patch, del };
 // ── Auth ──────────────────────────────────────────────────
 export const authApi = {
   login:  (email: string, password: string) =>
-    post<{ token?: string; id: string; email: string; role: string; nom: string; prenom: string; actif: boolean }>(
+    post<{ token?: string; id: string; email: string; role: string; nom: string; prenom: string; telephone?: string | null; avatar?: string | null; actif: boolean; tenantId?: string | null }>(
       '/api/auth/login', { email, password }
     ),
-  me:     () => get<{ id: string; email: string; role: string; nom: string; prenom: string; actif: boolean }>('/api/auth/me'),
+  me:     () => get<{ id: string; email: string; role: string; nom: string; prenom: string; telephone?: string | null; avatar?: string | null; actif: boolean; tenantId: string | null }>('/api/auth/me'),
   logout: () => post<{ message: string }>('/api/auth/logout', {}),
+  updatePassword: (currentPassword: string, newPassword: string) =>
+    post<{ message: string }>('/api/auth/password', { currentPassword, newPassword }),
+  updateProfile: (profile: { nom: string; prenom: string; email: string; telephone?: string | null; avatar?: string | null }) =>
+    patch<{ id: string; email: string; role: string; nom: string; prenom: string; telephone?: string | null; avatar?: string | null; actif: boolean; tenantId: string | null }>('/api/auth/profile', profile),
 };
 
 // ── Clients ───────────────────────────────────────────────
@@ -553,8 +557,18 @@ export const superadminApi = {
       return get<TenantListItem[]>(`/api/superadmin/tenants${query ? `?${query}` : ''}`);
     },
     get:    (id: string) => get<TenantDetail>(`/api/superadmin/tenants/${id}`),
-    create: (data: TenantCreatePayload) =>
-      post<TenantCreateResult>('/api/superadmin/tenants', data),
+    create: async (data: TenantCreatePayload) => {
+      const res = await post<{
+        tenant: TenantDetail;
+        adminUser: { email: string };
+        tempPassword: string;
+      }>('/api/superadmin/tenants', data);
+      return {
+        tenant: res.tenant,
+        adminEmail: res.adminUser.email,
+        adminPassword: res.tempPassword,
+      };
+    },
     update: (id: string, data: TenantPatchPayload) =>
       patch<TenantDetail>(`/api/superadmin/tenants/${id}`, data),
     impersonate: (id: string) =>

@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Plus, Save, Building2, Globe, CreditCard, RefreshCw, Tag, Ruler, ShieldAlert, X, Edit, Trash2, RotateCcw } from 'lucide-react';
+import { Plus, Save, Building2, Globe, CreditCard, RefreshCw, Tag, Ruler, ShieldAlert, X, Edit, Trash2, RotateCcw, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAppStore } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
-import { categoriesApi, parametresApi, unitesApi, USE_API } from '@/lib/api';
+import { categoriesApi, parametresApi, unitesApi, authApi, USE_API } from '@/lib/api';
 import type { Unite as ApiUnite } from '@/lib/api';
 import clsx from 'clsx';
 import type { Categorie } from '@/types';
@@ -21,7 +21,7 @@ const DEFAULT_CONFIG = {
   logoUrl:    window.location.origin + '/icon.png',
 } satisfies Record<string, string>;
 
-type Tab = 'categories' | 'unites' | 'entreprise' | 'maintenance';
+type Tab = 'categories' | 'unites' | 'entreprise' | 'securite' | 'maintenance';
 
 export default function ConfigurationPage() {
   const { categories, addCategorie, updateCategorie, deleteCategorie } = useAppStore();
@@ -49,6 +49,42 @@ export default function ConfigurationPage() {
 
   // Maintenance
   const [confirmText, setConfirmText] = useState('');
+
+  // Security state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      toast.error('Les nouveaux mots de passe ne correspondent pas');
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error('Le nouveau mot de passe doit faire au moins 6 caractères');
+      return;
+    }
+    setPasswordLoading(true);
+    try {
+      if (USE_API) {
+        await authApi.updatePassword(currentPassword, newPassword);
+      } else {
+        // mock delay
+        await new Promise(resolve => setTimeout(resolve, 600));
+      }
+      toast.success('Mot de passe mis à jour avec succès');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Erreur lors de la mise à jour du mot de passe');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
 
   const isAdmin = user?.role === 'admin';
   const canEdit = user?.role === 'admin' || user?.role === 'gestionnaire';
@@ -216,6 +252,7 @@ export default function ConfigurationPage() {
     { key: 'categories', label: 'Catégories', Icon: Tag },
     { key: 'unites', label: 'Unités', Icon: Ruler },
     { key: 'entreprise', label: 'Entreprise', Icon: Building2 },
+    { key: 'securite', label: 'Sécurité', Icon: Lock },
     ...(isAdmin ? [{ key: 'maintenance' as Tab, label: 'Maintenance', Icon: ShieldAlert }] : []),
   ];
 
@@ -404,6 +441,64 @@ export default function ConfigurationPage() {
           <div className="flex justify-between">
             <button className="btn-secondary" onClick={handleReset}><RefreshCw size={14} /> Réinitialiser</button>
             <button className="btn-primary" onClick={handleSave} disabled={configLoading}><Save size={15} /> {configLoading ? 'Enregistrement…' : saved ? 'Sauvegardé ✓' : 'Enregistrer'}</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Sécurité ── */}
+      {tab === 'securite' && (
+        <div className="space-y-6 max-w-md">
+          <div className="card p-6 space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Lock size={16} style={{ color: 'var(--color-gold)' }} />
+              <h2 className="font-semibold text-lg" style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>Modifier le mot de passe</h2>
+            </div>
+            <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+              Pour des raisons de sécurité, veuillez saisir votre mot de passe actuel avant d'en choisir un nouveau.
+            </p>
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <div>
+                <label className="label">Mot de passe actuel</label>
+                <input
+                  type="password"
+                  required
+                  className="input"
+                  value={currentPassword}
+                  onChange={e => setCurrentPassword(e.target.value)}
+                  placeholder="••••••••"
+                />
+              </div>
+              <div>
+                <label className="label">Nouveau mot de passe</label>
+                <input
+                  type="password"
+                  required
+                  className="input"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  placeholder="Minimum 6 caractères"
+                  minLength={6}
+                />
+              </div>
+              <div>
+                <label className="label">Confirmer le nouveau mot de passe</label>
+                <input
+                  type="password"
+                  required
+                  className="input"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="Confirmer le nouveau mot de passe"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={passwordLoading}
+                className="w-full btn-primary py-2.5 flex items-center justify-center gap-2 mt-2"
+              >
+                {passwordLoading ? 'Mise à jour en cours…' : 'Mettre à jour le mot de passe'}
+              </button>
+            </form>
           </div>
         </div>
       )}

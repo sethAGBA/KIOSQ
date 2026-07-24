@@ -8,12 +8,13 @@ export interface AppUser {
   prenom: string;
   role: UserRole;
   actif: boolean;
-  telephone?: string;
-  avatar?: string;
+  telephone?: string | null;
+  avatar?: string | null;
   dernierLogin?: Date;
   createdAt: Date;
   premiereConnexion?: boolean;
   onboardingStep?: number;
+  tenantId?: string | null;
 }
 
 // ── Entreprise / Configuration ───────────────────────────

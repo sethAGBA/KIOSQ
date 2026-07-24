@@ -18,6 +18,7 @@ import {
   Menu,
   X,
   Shield,
+  Lock,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
@@ -32,6 +33,7 @@ type NavItem = {
 const NAV: NavItem[] = [
   { to: '/superadmin',          label: 'Dashboard',  icon: LayoutDashboard, end: true },
   { to: '/superadmin/boutiques', label: 'Boutiques',  icon: Store },
+  { to: '/superadmin/profil',    label: 'Mon Profil', icon: Lock },
 ];
 
 // Sidebar background — very dark navy, distinct from the regular app sidebar (#111)
