@@ -1,0 +1,452 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Mise en place de la structure et des types de base": [
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404983907
+      },
+      {
+        "executionId": "da853077-50e1-4f74-8e49-6558657975ef",
+        "chatSessionId": "sess_b23864ce-c4bf-4d25-be45-cb5e31000142",
+        "timestamp": 1785407822614
+      }
+    ],
+    "2.1 Implémenter `bot/whatsapp/validateEnv.ts`": [
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404983957
+      },
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404993974
+      },
+      {
+        "executionId": "da853077-50e1-4f74-8e49-6558657975ef",
+        "chatSessionId": "sess_b23864ce-c4bf-4d25-be45-cb5e31000142",
+        "timestamp": 1785407832488
+      }
+    ],
+    "2.2 Écrire le test de propriété pour `validateWhatsappEnv`": [
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404983987
+      },
+      {
+        "executionId": "c9066bfd-61c4-4d8b-b943-fe8fd57aa2fc",
+        "chatSessionId": "sess_951ed09d-079e-459e-b23a-72dee94b6dc5",
+        "timestamp": 1785405364426
+      },
+      {
+        "executionId": "da853077-50e1-4f74-8e49-6558657975ef",
+        "chatSessionId": "sess_b23864ce-c4bf-4d25-be45-cb5e31000142",
+        "timestamp": 1785407836047
+      }
+    ],
+    "3.1 Implémenter `bot/whatsapp/security.ts`": [
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404984030
+      },
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404998910
+      },
+      {
+        "executionId": "da853077-50e1-4f74-8e49-6558657975ef",
+        "chatSessionId": "sess_b23864ce-c4bf-4d25-be45-cb5e31000142",
+        "timestamp": 1785407839643
+      }
+    ],
+    "3.2 Écrire le test de propriété pour `validateHmacSignature`": [
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404984067
+      },
+      {
+        "executionId": "c9066bfd-61c4-4d8b-b943-fe8fd57aa2fc",
+        "chatSessionId": "sess_951ed09d-079e-459e-b23a-72dee94b6dc5",
+        "timestamp": 1785405364755
+      },
+      {
+        "executionId": "da853077-50e1-4f74-8e49-6558657975ef",
+        "chatSessionId": "sess_b23864ce-c4bf-4d25-be45-cb5e31000142",
+        "timestamp": 1785407843297
+      }
+    ],
+    "4.1 Implémenter `bot/whatsapp/sessionStore.ts`": [
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404984100
+      },
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785405002294
+      },
+      {
+        "executionId": "da853077-50e1-4f74-8e49-6558657975ef",
+        "chatSessionId": "sess_b23864ce-c4bf-4d25-be45-cb5e31000142",
+        "timestamp": 1785407846742
+      }
+    ],
+    "5.1 Implémenter `bot/whatsapp/whatsappClient.ts`": [
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404984138
+      },
+      {
+        "executionId": "c9066bfd-61c4-4d8b-b943-fe8fd57aa2fc",
+        "chatSessionId": "sess_951ed09d-079e-459e-b23a-72dee94b6dc5",
+        "timestamp": 1785405365722
+      },
+      {
+        "executionId": "da853077-50e1-4f74-8e49-6558657975ef",
+        "chatSessionId": "sess_b23864ce-c4bf-4d25-be45-cb5e31000142",
+        "timestamp": 1785407850202
+      }
+    ],
+    "6.1 Implémenter `bot/whatsapp/kiosqWhatsappApi.ts`": [
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404984172
+      },
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785405758540
+      },
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785405973320
+      }
+    ],
+    "6.2 Écrire les tests de propriétés pour le filtrage et la pagination catalogue": [
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404984198
+      },
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785405977754
+      },
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785406113569
+      }
+    ],
+    "7.1 Implémenter `bot/whatsapp/geminiNlu.ts`": [
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404984230
+      },
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785405978456
+      },
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785406114485
+      }
+    ],
+    "8.1 Implémenter les fonctions pures métier dans `bot/whatsapp/conversationHandler.ts`": [
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404984261
+      },
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785406118246
+      },
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785406374831
+      }
+    ],
+    "8.2 Écrire les tests de propriétés pour les fonctions pures du panier et de la session": [
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404984291
+      },
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785406379249
+      },
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785407030031
+      }
+    ],
+    "8.3 Implémenter `handleIncomingMessage()` dans `bot/whatsapp/conversationHandler.ts`": [
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404984321
+      },
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785406379887
+      },
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785407030755
+      }
+    ],
+    "9. Checkpoint — Vérifier les fonctions pures et la machine d'états": [
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404984376
+      },
+      {
+        "executionId": "da853077-50e1-4f74-8e49-6558657975ef",
+        "chatSessionId": "sess_b23864ce-c4bf-4d25-be45-cb5e31000142",
+        "timestamp": 1785407900091
+      },
+      {
+        "executionId": "748f422e-a0b9-439f-925c-6fd348816810",
+        "chatSessionId": "sess_f0270ece-7358-49b6-bf39-5249c802435a",
+        "timestamp": 1785426427828
+      },
+      {
+        "executionId": "748f422e-a0b9-439f-925c-6fd348816810",
+        "chatSessionId": "sess_f0270ece-7358-49b6-bf39-5249c802435a",
+        "timestamp": 1785426574804
+      },
+      {
+        "executionId": "748f422e-a0b9-439f-925c-6fd348816810",
+        "chatSessionId": "sess_f0270ece-7358-49b6-bf39-5249c802435a",
+        "timestamp": 1785426642782
+      }
+    ],
+    "10.1 Implémenter `bot/whatsapp/webhook.ts`": [
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404984402
+      },
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785407035249
+      },
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785407178628
+      }
+    ],
+    "10.2 Écrire les tests de propriétés pour le webhook": [
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404984431
+      },
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785407183640
+      },
+      {
+        "executionId": "da853077-50e1-4f74-8e49-6558657975ef",
+        "chatSessionId": "sess_b23864ce-c4bf-4d25-be45-cb5e31000142",
+        "timestamp": 1785407882932
+      }
+    ],
+    "11.1 Implémenter `bot/whatsapp/notificationPoller.ts`": [
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404984461
+      },
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785407035778
+      },
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785407178072
+      }
+    ],
+    "11.2 Écrire le test de propriété pour les transitions notifiables": [
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404984485
+      },
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785407184667
+      },
+      {
+        "executionId": "da853077-50e1-4f74-8e49-6558657975ef",
+        "chatSessionId": "sess_b23864ce-c4bf-4d25-be45-cb5e31000142",
+        "timestamp": 1785407886233
+      }
+    ],
+    "12.1 Implémenter `bot/whatsapp/server.ts`": [
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404984525
+      },
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785407185048
+      },
+      {
+        "executionId": "da853077-50e1-4f74-8e49-6558657975ef",
+        "chatSessionId": "sess_b23864ce-c4bf-4d25-be45-cb5e31000142",
+        "timestamp": 1785407889755
+      }
+    ],
+    "12.2 Implémenter `bot/whatsapp/index.ts`": [
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404984558
+      },
+      {
+        "executionId": "da853077-50e1-4f74-8e49-6558657975ef",
+        "chatSessionId": "sess_b23864ce-c4bf-4d25-be45-cb5e31000142",
+        "timestamp": 1785407900982
+      },
+      {
+        "executionId": "748f422e-a0b9-439f-925c-6fd348816810",
+        "chatSessionId": "sess_f0270ece-7358-49b6-bf39-5249c802435a",
+        "timestamp": 1785426427906
+      },
+      {
+        "executionId": "748f422e-a0b9-439f-925c-6fd348816810",
+        "chatSessionId": "sess_f0270ece-7358-49b6-bf39-5249c802435a",
+        "timestamp": 1785426432477
+      },
+      {
+        "executionId": "748f422e-a0b9-439f-925c-6fd348816810",
+        "chatSessionId": "sess_f0270ece-7358-49b6-bf39-5249c802435a",
+        "timestamp": 1785426567303
+      }
+    ],
+    "13. Checkpoint final — Tous les tests passent": [
+      {
+        "executionId": "fcdf1c98-33c5-486c-bde0-5f0de77eefde",
+        "chatSessionId": "sess_79aa67c3-fca7-451f-a300-a6031e248103",
+        "timestamp": 1785404984594
+      },
+      {
+        "executionId": "748f422e-a0b9-439f-925c-6fd348816810",
+        "chatSessionId": "sess_f0270ece-7358-49b6-bf39-5249c802435a",
+        "timestamp": 1785426427929
+      },
+      {
+        "executionId": "748f422e-a0b9-439f-925c-6fd348816810",
+        "chatSessionId": "sess_f0270ece-7358-49b6-bf39-5249c802435a",
+        "timestamp": 1785426646763
+      },
+      {
+        "executionId": "748f422e-a0b9-439f-925c-6fd348816810",
+        "chatSessionId": "sess_f0270ece-7358-49b6-bf39-5249c802435a",
+        "timestamp": 1785426693265
+      }
+    ],
+    "6. Client API Kiosq spécifique WhatsApp": [
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785406113602
+      }
+    ],
+    "7. NLU — classifieur d'intentions WhatsApp": [
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785406114520
+      }
+    ],
+    "8. Gestionnaire de conversation — machine d'états": [
+      {
+        "executionId": "bf91359e-b4b5-4dcd-9eba-66f5aa1013be",
+        "chatSessionId": "sess_e5229a65-55ca-4b57-9458-a8ef6b29cd04",
+        "timestamp": 1785407030789
+      }
+    ],
+    "2. Validation d'environnement et chargement": [
+      {
+        "executionId": "da853077-50e1-4f74-8e49-6558657975ef",
+        "chatSessionId": "sess_b23864ce-c4bf-4d25-be45-cb5e31000142",
+        "timestamp": 1785407836110
+      }
+    ],
+    "3. Sécurité — HMAC et rate limiting": [
+      {
+        "executionId": "da853077-50e1-4f74-8e49-6558657975ef",
+        "chatSessionId": "sess_b23864ce-c4bf-4d25-be45-cb5e31000142",
+        "timestamp": 1785407843330
+      }
+    ],
+    "4. Store de sessions": [
+      {
+        "executionId": "da853077-50e1-4f74-8e49-6558657975ef",
+        "chatSessionId": "sess_b23864ce-c4bf-4d25-be45-cb5e31000142",
+        "timestamp": 1785407846777
+      }
+    ],
+    "5. Client WhatsApp (envoi de messages)": [
+      {
+        "executionId": "da853077-50e1-4f74-8e49-6558657975ef",
+        "chatSessionId": "sess_b23864ce-c4bf-4d25-be45-cb5e31000142",
+        "timestamp": 1785407850243
+      }
+    ],
+    "10. Webhook — réception et routage": [
+      {
+        "executionId": "da853077-50e1-4f74-8e49-6558657975ef",
+        "chatSessionId": "sess_b23864ce-c4bf-4d25-be45-cb5e31000142",
+        "timestamp": 1785407854082
+      }
+    ],
+    "11. Poller de notifications de statut": [
+      {
+        "executionId": "da853077-50e1-4f74-8e49-6558657975ef",
+        "chatSessionId": "sess_b23864ce-c4bf-4d25-be45-cb5e31000142",
+        "timestamp": 1785407857757
+      }
+    ],
+    "12. Serveur HTTP et point d'entrée principal": [
+      {
+        "executionId": "748f422e-a0b9-439f-925c-6fd348816810",
+        "chatSessionId": "sess_f0270ece-7358-49b6-bf39-5249c802435a",
+        "timestamp": 1785426567333
+      }
+    ]
+  }
+}

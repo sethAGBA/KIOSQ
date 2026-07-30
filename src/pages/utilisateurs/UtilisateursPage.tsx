@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Shield, Mail, Phone, CheckCircle, XCircle, Edit, X, RefreshCw } from 'lucide-react';
+import { Plus, Search, Shield, Mail, Phone, CheckCircle, XCircle, Edit, X, RefreshCw, KeyRound } from 'lucide-react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { formatDate } from '@/lib/format';
@@ -46,6 +46,8 @@ export default function UtilisateursPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
+  const [showResetPwd, setShowResetPwd] = useState(false);
+  const [resetPwd, setResetPwd] = useState('');
 
   const isAdmin = currentUser?.role === 'admin';
 
@@ -97,6 +99,16 @@ export default function UtilisateursPage() {
           setUsers(prev => prev.map(u => u.id === editing.id ? { ...u, ...patch } : u));
         }
         toast.success('Utilisateur modifié');
+        if (USE_API && showResetPwd && resetPwd.length >= 6) {
+          try {
+            await utilisateursApi.resetPassword(editing.id, resetPwd);
+            toast.success('Mot de passe réinitialisé');
+            setShowResetPwd(false);
+            setResetPwd('');
+          } catch (resetErr: any) {
+            toast.error(resetErr.message || 'Erreur lors de la réinitialisation');
+          }
+        }
       } else {
         if (!form.password) return toast.error('Mot de passe requis');
         if (USE_API) {
@@ -112,6 +124,8 @@ export default function UtilisateursPage() {
         toast.success('Utilisateur créé');
       }
       setShowModal(false);
+      setShowResetPwd(false);
+      setResetPwd('');
     } catch (err: any) {
       toast.error(err.message || 'Une erreur est survenue');
     } finally {
@@ -265,7 +279,7 @@ export default function UtilisateursPage() {
               <h2 className="text-lg font-semibold" style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
                 {editing ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur'}
               </h2>
-              <button onClick={() => setShowModal(false)} style={{ color: 'var(--color-ink-muted)' }}><X size={18} /></button>
+              <button onClick={() => { setShowModal(false); setShowResetPwd(false); setResetPwd(''); }} style={{ color: 'var(--color-ink-muted)' }}><X size={18} /></button>
             </div>
             <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -323,8 +337,34 @@ export default function UtilisateursPage() {
                 <input value={form.telephone} onChange={e => setForm(f => ({ ...f, telephone: e.target.value }))}
                   className="input" placeholder="+221 77 000 00 00" />
               </div>
+              {editing && (
+                <div className="border-t pt-3" style={{ borderColor: 'var(--color-cream-dark)' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPwd(v => !v)}
+                    className="text-xs font-medium flex items-center gap-1.5"
+                    style={{ color: showResetPwd ? 'var(--color-gold)' : 'var(--color-ink-muted)' }}
+                  >
+                    <KeyRound size={13} />
+                    {showResetPwd ? 'Annuler la réinitialisation' : 'Réinitialiser le mot de passe'}
+                  </button>
+                  {showResetPwd && (
+                    <div className="mt-3">
+                      <label className="label">Nouveau mot de passe (min. 6 caractères)</label>
+                      <input
+                        type="password"
+                        minLength={6}
+                        className="input"
+                        placeholder="••••••••"
+                        value={resetPwd}
+                        onChange={e => setResetPwd(e.target.value)}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="flex justify-end gap-2 mt-4">
-                <button type="button" className="btn-secondary" onClick={() => setShowModal(false)}>Annuler</button>
+                <button type="button" className="btn-secondary" onClick={() => { setShowModal(false); setShowResetPwd(false); setResetPwd(''); }}>Annuler</button>
                 <button type="submit" disabled={loading} className="btn-primary">
                   {loading ? 'Enregistrement…' : editing ? 'Mettre à jour' : 'Créer'}
                 </button>

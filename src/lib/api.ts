@@ -300,12 +300,14 @@ export const posApi = {
 
 // ── Utilisateurs ──────────────────────────────────────────
 export const utilisateursApi = {
-  list:     () => get<import('@/types').AppUser[]>('/api/utilisateurs'),
-  create:   (data: { email: string; password: string; nom: string; prenom: string; role: string; telephone?: string }) =>
+  list:          () => get<import('@/types').AppUser[]>('/api/utilisateurs'),
+  create:        (data: { email: string; password: string; nom: string; prenom: string; role: string; telephone?: string }) =>
     post<import('@/types').AppUser>('/api/utilisateurs', data),
-  update:   (id: string, data: Partial<import('@/types').AppUser>) =>
+  update:        (id: string, data: Partial<import('@/types').AppUser>) =>
     patch<import('@/types').AppUser>(`/api/utilisateurs/${id}`, data),
-  remove:   (id: string) => del<{ message: string }>(`/api/utilisateurs/${id}`),
+  remove:        (id: string) => del<{ message: string }>(`/api/utilisateurs/${id}`),
+  resetPassword: (id: string, newPassword: string) =>
+    patch<import('@/types').AppUser>(`/api/utilisateurs/${id}`, { newPassword }),
 };
 
 // ── Dashboard ─────────────────────────────────────────────

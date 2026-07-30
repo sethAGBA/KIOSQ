@@ -49,6 +49,7 @@ import RetourClientPage from '@/pages/pos/RetourClientPage';
 import RetoursListPage from '@/pages/pos/RetoursListPage';
 import LeadsPage from '@/pages/leads/LeadsPage';
 import LeadDetailPage from '@/pages/leads/LeadDetailPage';
+import ProfilPageTenant from '@/pages/configuration/ProfilPage';
 
 // Lightweight loading fallback used for lazy superadmin pages
 function SuperadminFallback() {
@@ -166,6 +167,9 @@ export default function App() {
           {/* Templates */}
           <Route path="/templates" element={<TemplatesPage />} />
           <Route path="/templates/exporter" element={<ExporterCataloguePage />} />
+
+          {/* Profil utilisateur */}
+          <Route path="/profil" element={<ProfilPageTenant />} />
         </Route>
 
         {/* Fallback */}

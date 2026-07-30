@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
+import bcrypt from 'bcryptjs';
 import { getDb } from '../../db/client.js';
 import { users } from '../../db/schema.js';
 import { requireTenantAuth, handleOptions } from '../_lib/auth.js';
@@ -8,12 +9,13 @@ import { ok, err, parseBody } from '../_lib/response.js';
 import { logAction } from '../_lib/auditLog.js';
 
 const PatchSchema = z.object({
-  nom:       z.string().min(1).optional(),
-  prenom:    z.string().min(1).optional(),
-  role:      z.enum(['admin', 'commercial', 'gestionnaire', 'comptable', 'lecteur']).optional(),
-  telephone: z.string().optional(),
-  actif:     z.boolean().optional(),
-  magasinId: z.string().nullable().optional(),
+  nom:         z.string().min(1).optional(),
+  prenom:      z.string().min(1).optional(),
+  role:        z.enum(['admin', 'commercial', 'gestionnaire', 'comptable', 'lecteur']).optional(),
+  telephone:   z.string().optional(),
+  actif:       z.boolean().optional(),
+  magasinId:   z.string().nullable().optional(),
+  newPassword: z.string().min(6).optional(),
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -30,9 +32,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'PATCH') {
     const parsed = PatchSchema.safeParse(body);
     if (!parsed.success) return err(res, 'Données invalides', 422);
+
+    // Guard: admin cannot reset their own password this way
+    if (ctx.sub === id && parsed.data.newPassword) {
+      return err(res, 'Utilisez /api/auth/password pour modifier votre propre mot de passe', 400);
+    }
+
     try {
+      const { newPassword, ...fields } = parsed.data;
+      const setData: Record<string, unknown> = { ...fields, updatedAt: new Date() };
+
+      if (newPassword) {
+        setData.passwordHash = await bcrypt.hash(newPassword, 10);
+      }
+
       const [row] = await db.update(users)
-        .set({ ...parsed.data, updatedAt: new Date() })
+        .set(setData)
         .where(and(eq(users.id, id), eq(users.tenantId, ctx.tenantId!)))
         .returning({
           id:        users.id,
@@ -45,6 +60,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           createdAt: users.createdAt,
         });
       if (!row) return err(res, 'Utilisateur introuvable', 404);
+
+      if (newPassword) {
+        await logAction(db, ctx.tenantId!, ctx.sub, 'user.password_reset', 'user', id);
+      }
+
       return ok(res, row);
     } catch (e) {
       console.error('[utilisateurs/:id PATCH]', e);

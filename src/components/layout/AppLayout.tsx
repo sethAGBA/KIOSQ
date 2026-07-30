@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Package, ShoppingCart, FileText,
   Truck, BarChart3, Settings, Bell, LogOut, ChevronRight,
   Menu, X, TrendingUp, UserCog, Store, AlertTriangle, Crosshair, Sparkles, RefreshCw, Calculator, RotateCcw,
-  ChevronDown,
+  ChevronDown, UserCircle,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
@@ -337,6 +337,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           )}
+          <button
+            onClick={() => navigate('/profil')}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all"
+            style={{ color: 'rgba(255,255,255,0.4)' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = 'white';
+              e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = 'rgba(255,255,255,0.4)';
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+          >
+            <UserCircle size={13} className="shrink-0" />
+            {sidebarOpen && 'Mon profil'}
+          </button>
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all"
