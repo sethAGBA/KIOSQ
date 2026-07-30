@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Mail, Phone, MapPin, Building2, User, Edit, ShoppingCart, FileText, X, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, MapPin, Building2, User, Edit, ShoppingCart, FileText, X, RotateCcw, MessageCircle } from 'lucide-react';
 import clsx from 'clsx';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
@@ -155,6 +155,16 @@ export default function ClientDetailPage() {
               <p className="text-sm flex items-center gap-1.5" style={{ color: 'var(--color-ink)' }}>
                 <Phone size={13} />{client.telephone}
               </p>
+              <a
+                href={`https://wa.me/${client.telephone}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs font-medium"
+                style={{ color: '#25D366' }}
+              >
+                <MessageCircle size={13} />
+                Contacter sur WhatsApp
+              </a>
             </div>
           )}
           {(client.ville || client.pays) && (

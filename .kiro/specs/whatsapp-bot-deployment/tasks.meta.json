@@ -1,0 +1,376 @@
+{
+  "pbtResults": {
+    "5.2 Write property tests for graceful shutdown": {
+      "status": "passed",
+      "lastRunTimestamp": 1785432576182
+    }
+  },
+  "executionHistory": {
+    "1.1 Create `bot/whatsapp/tsconfig.json` with NodeNext module system": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432186856
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432195428
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432271671
+      }
+    ],
+    "2.1 Add `start:whatsapp` and `build:whatsapp` scripts": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432186916
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432290037
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432318282
+      }
+    ],
+    "3.1 Write `.env.example` with all required and optional variables": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432186949
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432199927
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432277536
+      }
+    ],
+    "4.1 Ensure `bot/.gitignore` excludes `.env` and `whatsapp/.env`": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432186985
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432203608
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432282485
+      }
+    ],
+    "5.1 Capture `server` reference from `startServer()` and add shutdown handler": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432187024
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432324333
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432405996
+      }
+    ],
+    "5.2 Write property tests for graceful shutdown": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432187053
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432417866
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432596371
+      }
+    ],
+    "6. Checkpoint — build and shutdown tests pass": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432187085
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432605379
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432807885
+      }
+    ],
+    "7.1 Write multi-stage Dockerfile for the whatsapp bot": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432187118
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432811801
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432862803
+      }
+    ],
+    "8.1 Create `bot/.dockerignore` (build context is `bot/`)": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432187148
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432328120
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432411299
+      }
+    ],
+    "9.1 Create `bot/whatsapp/README.md` with full deployment documentation": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432187179
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432868114
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785433012146
+      }
+    ],
+    "10. Final checkpoint — all artifacts in place": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432187212
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785433019236
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785433074997
+      }
+    ],
+    "11.1 Create `src/lib/phone.ts` exporting `normalizePhone`": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432187241
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785433080517
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785433141516
+      }
+    ],
+    "11.2 Apply `normalizePhone` in `ClientsPage.tsx` before API call": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432187275
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785433151934
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785433283125
+      }
+    ],
+    "11.3 Add `?telephone=` exact-match param to `api/clients/index.ts` GET handler": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432187305
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785433084652
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785433145846
+      }
+    ],
+    "11.4 Write `src/lib/phone.property.test.ts` — Property 5": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432187337
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785433155618
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785433289055
+      }
+    ],
+    "12.1 Add WhatsApp badge in `ClientsPage.tsx` client name cell": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432187371
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785433159037
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785433293209
+      }
+    ],
+    "13.1 Add conditional WhatsApp link in `src/pages/clients/ClientDetailPage.tsx`": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432187416
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785433162628
+      },
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785433297714
+      }
+    ],
+    "1. Create `bot/whatsapp/tsconfig.json`": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432271714
+      }
+    ],
+    "3. Create `bot/whatsapp/.env.example`": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432277565
+      }
+    ],
+    "4. Update `bot/.gitignore` for secret exclusion": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432282557
+      }
+    ],
+    "2. Add npm scripts to `bot/package.json`": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432318305
+      }
+    ],
+    "8. Create `.dockerignore` files": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432411350
+      }
+    ],
+    "5. Implement graceful shutdown in `bot/whatsapp/index.ts`": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432596410
+      }
+    ],
+    "7. Create `bot/whatsapp/Dockerfile`": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785432862835
+      }
+    ],
+    "9. Write deployment guide `bot/whatsapp/README.md`": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785433012175
+      }
+    ],
+    "11. Normalisation du numéro de téléphone client": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785433289083
+      }
+    ],
+    "12. Badge WhatsApp dans la liste clients": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785433293233
+      }
+    ],
+    "13. Lien WhatsApp dans la fiche client": [
+      {
+        "executionId": "6648b4ad-475d-43c3-8f29-b68a597840f2",
+        "chatSessionId": "sess_ed0f7df0-8b4f-4984-80d4-ae1caf590278",
+        "timestamp": 1785433297765
+      }
+    ]
+  }
+}

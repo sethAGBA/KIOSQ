@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "start": "tsx index.ts",
+    "start:whatsapp": "tsx whatsapp/index.ts",
     "build": "tsc --noEmit",
+    "build:whatsapp": "tsc -p whatsapp/tsconfig.json",
     "generate-jwt": "tsx generate-jwt.ts",
     "test": "vitest --run index.test.ts"
   },

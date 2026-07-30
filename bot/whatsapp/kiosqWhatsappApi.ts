@@ -8,14 +8,14 @@
  * Requirements: 2.1, 2.3, 3.1, 3.3, 5.1, 6.1, 6.3
  */
 
-import { kiosqRequest } from '../kiosqApi';
+import { kiosqRequest } from '../kiosqApi.js';
 import type {
   ProduitDisponible,
   ClientKiosq,
   CommandeCreee,
   CommandePayload,
   ParametresTenant,
-} from './types';
+} from './types.js';
 
 type FetchFn = typeof fetch;
 

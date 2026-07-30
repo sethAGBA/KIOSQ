@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.test.ts
+*.property.test.ts
+.env
+.env.local
+whatsapp/.env
+whatsapp/.env.local

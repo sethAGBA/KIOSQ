@@ -27,6 +27,7 @@ import {
 } from './kiosqWhatsappApi.js';
 import { startServer } from './server.js';
 import { pollCommandeStatuts } from './notificationPoller.js';
+import { createShutdownHandler } from './shutdown.js';
 import type { KiosqWhatsappApi } from './conversationHandler.js';
 
 const POLL_INTERVAL_MS = 60_000; // 60 seconds
@@ -55,7 +56,7 @@ export async function main(): Promise<void> {
   };
 
   // Step 4: start the HTTP server (GET /health, GET/POST /webhook)
-  startServer(sessionStore, rateLimiter, kiosqApi, whatsappClient);
+  const server = startServer(sessionStore, rateLimiter, kiosqApi, whatsappClient);
 
   // Step 5: poll commande statuses every 60 seconds
   const timer = setInterval(
@@ -73,6 +74,12 @@ export async function main(): Promise<void> {
   }
 
   console.log('[main] WhatsApp bot started');
+
+  // Step 6: graceful shutdown handler (Requirements 5.1–5.7)
+  const shutdown = createShutdownHandler(server, timer);
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 main().catch(console.error);

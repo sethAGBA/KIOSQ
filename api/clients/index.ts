@@ -32,9 +32,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── GET /api/clients ──────────────────────────────────
   if (req.method === 'GET') {
     try {
+      const telephone = req.query.telephone as string | undefined;
       const q = req.query.q as string | undefined;
       let rows;
-      if (q) {
+      if (telephone) {
+        rows = await db.select().from(clients)
+          .where(and(eq(clients.tenantId, ctx.tenantId), eq(clients.telephone, telephone)))
+          .orderBy(desc(clients.createdAt));
+        return ok(res, numericRows(rows));
+      } else if (q) {
         rows = await db.select().from(clients)
           .where(and(eq(clients.tenantId, ctx.tenantId), or(ilike(clients.nom, `%${q}%`), ilike(clients.email, `%${q}%`))))
           .orderBy(desc(clients.createdAt));

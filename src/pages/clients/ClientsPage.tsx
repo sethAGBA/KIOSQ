@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Filter, Building2, User, ArrowUpRight, Phone, Mail, X, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, Filter, Building2, User, ArrowUpRight, Phone, Mail, X, Edit, Trash2, MessageCircle } from 'lucide-react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { useAppStore } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
 import { clientsApi, USE_API } from '@/lib/api';
+import { normalizePhone } from '@/lib/phone';
 import { formatPrice, formatDate } from '@/lib/format';
 import type { Client } from '@/types';
 import { useTableControls } from '@/hooks/useTableControls';
@@ -85,9 +86,10 @@ export default function ClientsPage() {
     e.preventDefault();
     setLoading(true);
     try {
+      const normalizedTel = form.telephone ? normalizePhone(form.telephone) : form.telephone;
       if (editing) {
         if (USE_API) {
-          const updated = await clientsApi.update(editing.id, form);
+          const updated = await clientsApi.update(editing.id, { ...form, telephone: normalizedTel });
           updateClient(editing.id, updated);
         } else {
           updateClient(editing.id, { ...form, updatedAt: new Date() });
@@ -95,7 +97,7 @@ export default function ClientsPage() {
         toast.success('Client modifié');
       } else {
         if (USE_API) {
-          const created = await clientsApi.create(form);
+          const created = await clientsApi.create({ ...form, telephone: normalizedTel });
           addClient(created);
         } else {
           addClient({
@@ -228,7 +230,10 @@ export default function ClientsPage() {
                         {c.typeClient === 'entreprise' ? <Building2 size={14} /> : c.nom[0].toUpperCase()}
                       </div>
                       <div>
-                        <p className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>{c.nom}</p>
+                        <p className="text-sm font-medium flex items-center" style={{ color: 'var(--color-ink)' }}>
+                          {c.nom}
+                          {c.notes?.includes('WhatsApp') && <MessageCircle size={13} className="shrink-0 inline ml-1" style={{ color: '#25D366' }} />}
+                        </p>
                         <p className="text-xs font-mono" style={{ color: 'var(--color-ink-muted)' }}>{c.code}</p>
                       </div>
                     </div>
