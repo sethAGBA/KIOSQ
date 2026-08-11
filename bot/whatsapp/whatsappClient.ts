@@ -1,125 +1,150 @@
 /**
- * WhatsApp Cloud API client for sending messages.
+ * whatsappClient.ts — WhatsApp client using whatsapp-web.js (QR code auth).
  *
- * Docs: https://developers.facebook.com/docs/whatsapp/cloud-api/reference/messages
+ * Replaces the Meta Cloud API HTTP client with a local WhatsApp Web session.
+ * The client connects via QR code on first launch; the session is persisted
+ * locally via LocalAuth so subsequent starts don't need a new QR scan.
+ *
+ * Public interface is identical to the former Meta Cloud API client:
+ *   - sendTextMessage(to, body)
+ *   - sendListMessage(to, header, sections)  ← sends as plain text (WWebJS has no list messages)
+ *
+ * Exports:
+ *   - WhatsappWebClient  (class)
+ *   - createWhatsappClient()  (factory used by index.ts)
  */
 
-/** A single row inside a WhatsApp interactive list section. */
+// whatsapp-web.js is a CJS module — access via default export when using ESM
+import wwebjs from 'whatsapp-web.js';
+const { Client, NoAuth } = wwebjs;
+import qrcode from 'qrcode-terminal';
+
+/** Section row — kept for interface compatibility with former Meta Cloud API client. */
 export interface SectionRow {
   id: string;
   title: string;
   description?: string;
 }
 
-/** A section in a WhatsApp interactive list message. */
+/** Section — kept for interface compatibility. */
 export interface Section {
   title: string;
   rows: SectionRow[];
 }
 
-type FetchFn = typeof fetch;
-
-function getConfig() {
-  return {
-    token: process.env.WHATSAPP_TOKEN ?? '',
-    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID ?? '',
-  };
-}
-
-const GRAPH_API_BASE = 'https://graph.facebook.com/v20.0';
-
 /**
- * Client for the WhatsApp Cloud API.
+ * WhatsApp client backed by whatsapp-web.js.
  *
- * By default it reads `WHATSAPP_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID` from
- * `process.env`. Pass explicit values to the constructor to override (useful
- * in tests).
+ * Usage:
+ *   const client = createWhatsappClient();
+ *   await client.initialize(); // shows QR code in terminal
+ *   await client.sendTextMessage('22890000000', 'Bonjour !');
  */
-export class WhatsappClient {
-  private readonly token: string;
-  private readonly phoneNumberId: string;
-  private readonly fetchFn: FetchFn;
+export class WhatsappWebClient {
+  private client: Client;
+  private ready = false;
 
-  constructor(
-    options: { token?: string; phoneNumberId?: string; fetchFn?: FetchFn } = {},
-  ) {
-    const cfg = getConfig();
-    this.token = options.token ?? cfg.token;
-    this.phoneNumberId = options.phoneNumberId ?? cfg.phoneNumberId;
-    this.fetchFn = options.fetchFn ?? fetch;
-  }
-
-  private get messagesUrl(): string {
-    return `${GRAPH_API_BASE}/${this.phoneNumberId}/messages`;
-  }
-
-  private async post(body: unknown): Promise<void> {
-    const res = await this.fetchFn(this.messagesUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.token}`,
+  constructor() {
+    this.client = new Client({
+      authStrategy: new NoAuth(),
+      puppeteer: {
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
       },
-      body: JSON.stringify(body),
     });
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`WhatsApp API HTTP ${res.status}: ${text}`);
+    this.client.on('qr', (qr) => {
+      console.log('\n[whatsapp] Scannez ce QR code avec WhatsApp sur votre téléphone :\n');
+      qrcode.generate(qr, { small: true });
+    });
+
+    this.client.on('ready', () => {
+      this.ready = true;
+      console.log('[whatsapp] Client connecté et prêt.');
+    });
+
+    this.client.on('auth_failure', (msg) => {
+      console.error('[whatsapp] Échec d\'authentification :', msg);
+    });
+
+    this.client.on('disconnected', (reason) => {
+      this.ready = false;
+      console.warn('[whatsapp] Client déconnecté :', reason);
+      // Auto-reconnect after 5s unless it was a deliberate LOGOUT
+      if (reason !== 'LOGOUT') {
+        console.log('[whatsapp] Reconnexion dans 5 secondes…');
+        setTimeout(() => {
+          this.client.initialize().catch((err) =>
+            console.error('[whatsapp] Erreur reconnexion :', err),
+          );
+        }, 5000);
+      }
+    });
+  }
+
+  /** Initialise the WhatsApp client (shows QR code, waits for auth). */
+  async initialize(): Promise<void> {
+    await this.client.initialize();
+  }
+
+  /** Gracefully destroy the session (called on shutdown). */
+  async destroy(): Promise<void> {
+    try {
+      await this.client.destroy();
+    } catch (err) {
+      // On Windows, LocalAuth may fail with EBUSY when Chromium still holds
+      // a lock on the Cookies file — safe to ignore during shutdown.
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code !== 'EBUSY') {
+        console.error('[whatsapp] Erreur lors de destroy :', err);
+      }
     }
   }
 
   /**
-   * Send a plain text message to a WhatsApp number.
+   * Send a plain text message.
    *
-   * @param to - Recipient phone number in E.164 format without leading `+`
-   *             (e.g. `"221771234567"`).
-   * @param body - The text content of the message (max 4096 chars).
+   * @param to   Recipient number in E.164 format without leading `+`
+   *             (e.g. `"22890000000"`). The suffix `@c.us` is added automatically.
+   * @param body Message text (max 4096 chars recommended).
    */
   async sendTextMessage(to: string, body: string): Promise<void> {
-    await this.post({
-      messaging_product: 'whatsapp',
-      recipient_type: 'individual',
-      to,
-      type: 'text',
-      text: {
-        preview_url: false,
-        body,
-      },
-    });
+    if (!this.ready) {
+      throw new Error('[whatsapp] Client non prêt — message non envoyé');
+    }
+    const chatId = to.includes('@') ? to : `${to}@c.us`;
+    await this.client.sendMessage(chatId, body);
   }
 
   /**
-   * Send an interactive list message to a WhatsApp number.
+   * Send an interactive list as plain text (whatsapp-web.js has no native list
+   * messages). Each row is rendered as a numbered option.
    *
-   * List messages display a button that opens a scrollable list of options
-   * grouped into sections. Each row has an `id` (returned when the user
-   * selects it) and a `title`.
-   *
-   * @param to       - Recipient phone number in E.164 format without leading `+`.
-   * @param header   - Short header text displayed above the list button (max 60 chars).
-   * @param sections - Array of sections, each with a title and an array of rows.
+   * @param to       Recipient number in E.164 format without leading `+`.
+   * @param header   Header text shown before the list.
+   * @param sections Array of sections with rows.
    */
   async sendListMessage(to: string, header: string, sections: Section[]): Promise<void> {
-    await this.post({
-      messaging_product: 'whatsapp',
-      recipient_type: 'individual',
-      to,
-      type: 'interactive',
-      interactive: {
-        type: 'list',
-        header: {
-          type: 'text',
-          text: header,
-        },
-        body: {
-          text: header,
-        },
-        action: {
-          button: 'Choisir',
-          sections,
-        },
-      },
-    });
+    const lines: string[] = [header, ''];
+    let counter = 1;
+    for (const section of sections) {
+      if (section.title) lines.push(`*${section.title}*`);
+      for (const row of section.rows) {
+        lines.push(`${counter}. ${row.title}${row.description ? ` — ${row.description}` : ''}`);
+        counter++;
+      }
+      lines.push('');
+    }
+    await this.sendTextMessage(to, lines.join('\n').trim());
   }
+
+  /** Returns true when the client is authenticated and ready to send messages. */
+  isReady(): boolean {
+    return this.ready;
+  }
+}
+
+/** Factory — creates and returns an uninitialised client instance. */
+export function createWhatsappClient(): WhatsappWebClient {
+  return new WhatsappWebClient();
 }

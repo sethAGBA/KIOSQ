@@ -1,21 +1,17 @@
 /**
- * index.ts — Entry point for the WhatsApp commandes bot.
+ * index.ts — Entry point for the WhatsApp commandes bot (whatsapp-web.js).
  *
- * Startup sequence:
- *   1. Load .env files via loadEnv()
- *   2. Validate required environment variables (exits with code 1 if any missing)
- *   3. Instantiate SessionStore, RateLimiter, WhatsappClient, KiosqWhatsappApi adapter
- *   4. Start the HTTP server
- *   5. Start polling commande statuses every 60 seconds
- *
- * Requirements: 10.2, 10.4
+ * All event listeners are registered BEFORE calling initialize() to guarantee
+ * no events are missed during the authentication flow.
  */
 
 import '../loadEnv.js';
 import { validateWhatsappEnv } from './validateEnv.js';
 import { SessionStore } from './sessionStore.js';
 import { RateLimiter } from './security.js';
-import { WhatsappClient } from './whatsappClient.js';
+import { createWhatsappClient } from './whatsappClient.js';
+import { registerMessageListener } from './messageListener.js';
+import { startHealthServer } from './healthServer.js';
 import {
   getProduits,
   getClient,
@@ -25,26 +21,21 @@ import {
   getCommandesClient,
   getParametres,
 } from './kiosqWhatsappApi.js';
-import { startServer } from './server.js';
 import { pollCommandeStatuts } from './notificationPoller.js';
 import { createShutdownHandler } from './shutdown.js';
 import type { KiosqWhatsappApi } from './conversationHandler.js';
 
-const POLL_INTERVAL_MS = 60_000; // 60 seconds
+const POLL_INTERVAL_MS = 60_000;
 
 export async function main(): Promise<void> {
-  // Step 1: env vars are loaded by the side-effect import above (../loadEnv.js)
-
-  // Step 2: validate required variables — exits process with code 1 if any missing
+  // Step 1: validate env vars
   validateWhatsappEnv();
 
-  // Step 3: instantiate core components
+  // Step 2: instantiate core components
   const sessionStore = new SessionStore();
-  const rateLimiter = new RateLimiter();
-  const whatsappClient = new WhatsappClient();
+  const rateLimiter  = new RateLimiter();
+  const waClient     = createWhatsappClient();
 
-  // Build an object that satisfies the KiosqWhatsappApi interface using the
-  // standalone functions from kiosqWhatsappApi.ts
   const kiosqApi: KiosqWhatsappApi = {
     getProduits,
     getClient,
@@ -55,31 +46,52 @@ export async function main(): Promise<void> {
     getParametres,
   };
 
-  // Step 4: start the HTTP server (GET /health, GET/POST /webhook)
-  const server = startServer(sessionStore, rateLimiter, kiosqApi, whatsappClient);
+  // Step 3: start health-check server
+  const healthServer = startHealthServer();
 
-  // Step 5: poll commande statuses every 60 seconds
-  const timer = setInterval(
-    () =>
-      pollCommandeStatuts(sessionStore, kiosqApi, whatsappClient).catch((err) =>
-        console.error('[main] pollCommandeStatuts error:', err),
-      ),
-    POLL_INTERVAL_MS,
-  );
+  // Step 4: access the internal wwebjsClient BEFORE initialize()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const internalClient = (waClient as any).client;
 
-  // Allow the process to exit cleanly even if the interval is the only
-  // remaining async handle (e.g. in tests).
-  if (typeof (timer as unknown as { unref?: () => void }).unref === 'function') {
-    (timer as unknown as { unref: () => void }).unref();
-  }
+  let pollerTimer: ReturnType<typeof setInterval> | null = null;
+  let shutdownRegistered = false;
 
-  console.log('[main] WhatsApp bot started');
+  // Register 'ready' handler BEFORE initialize() so it can't be missed
+  internalClient.on('ready', () => {
+    console.log('[whatsapp] Client connecté et prêt.');
 
-  // Step 6: graceful shutdown handler (Requirements 5.1–5.7)
-  const shutdown = createShutdownHandler(server, timer);
+    // Register message listener
+    registerMessageListener(internalClient, sessionStore, rateLimiter, kiosqApi, waClient);
 
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
+    // Start notification poller
+    pollerTimer = setInterval(
+      () =>
+        pollCommandeStatuts(sessionStore, kiosqApi, waClient).catch((err) =>
+          console.error('[main] pollCommandeStatuts error:', err),
+        ),
+      POLL_INTERVAL_MS,
+    );
+
+    if (typeof (pollerTimer as unknown as { unref?: () => void }).unref === 'function') {
+      (pollerTimer as unknown as { unref: () => void }).unref();
+    }
+
+    console.log('[main] Bot WhatsApp démarré et prêt à recevoir des messages.');
+
+    // Register graceful shutdown only once
+    if (!shutdownRegistered) {
+      shutdownRegistered = true;
+      const shutdown = createShutdownHandler(healthServer, pollerTimer!);
+      process.on('SIGTERM', () => waClient.destroy().finally(() => shutdown('SIGTERM')));
+      process.on('SIGINT',  () => waClient.destroy().finally(() => shutdown('SIGINT')));
+    }
+  });
+
+  // Step 5: initialize (shows QR code, waits for auth)
+  console.log('[main] Initialisation du client WhatsApp…');
+  console.log('[main] Scannez le QR code qui va s\'afficher dans quelques secondes.');
+
+  await waClient.initialize();
 }
 
 main().catch(console.error);
