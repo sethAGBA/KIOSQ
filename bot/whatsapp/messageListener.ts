@@ -29,6 +29,18 @@ export function registerMessageListener(
 ): void {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   wwebjsClient.on('message', async (msg: any) => {
+    console.log('[messageListener] Message reçu — type:', msg.type, 'from:', msg.from, 'body:', msg.body?.slice(0, 50));
+
+    // Ignorer les messages envoyés par soi-même
+    if (msg.fromMe) {
+      return;
+    }
+
+    // Ignorer les statuts et broadcasts
+    if (msg.from === 'status@broadcast' || msg.from?.includes('@broadcast')) {
+      return;
+    }
+
     // Only handle text, image, document
     if (msg.type !== 'chat' && msg.type !== 'image' && msg.type !== 'document') {
       return;

@@ -221,8 +221,13 @@ export async function handleIncomingMessage(
     // ── IDENTIFICATION ───────────────────────────────────────────────────
     if (session.step === 'IDENTIFICATION') {
       if (session.pendingNomCapture) {
-        // The user just sent their name — create the client
-        const nom = text || 'Client WhatsApp';
+        // Extraire le nom depuis des formulations comme "je suis Seth AGBA", "mon nom est Seth", etc.
+        const nom = extraireNom(text);
+        if (!nom) {
+          // Pas compris — redemander plus simplement
+          await whatsappClient.sendTextMessage(phone, 'Je n\'ai pas bien saisi votre nom. Pouvez-vous juste écrire votre prénom et nom ? (ex: *Seth AGBA*)');
+          return;
+        }
         try {
           const newClient = await kiosqApi.createClient(nom, phone);
           session.clientId = newClient.id;
@@ -363,13 +368,30 @@ export async function handleIncomingMessage(
         return;
       }
 
+      // "non", "annuler" depuis CATALOGUE → retour au menu
+      if (lower === 'non' || lower === 'annuler') {
+        session.step = 'MENU_PRINCIPAL';
+        await whatsappClient.sendTextMessage(phone, menuPrincipalText(session.clientNom));
+        return;
+      }
+
+      // "confirmer" depuis CATALOGUE → aller directement à la confirmation
+      if (lower === 'confirmer' || lower === 'oui' || lower === 'valider') {
+        if (session.panier.length > 0) {
+          session.step = 'CONFIRMATION';
+          return handleConfirmation(phone, session, sessionStore, kiosqApi, whatsappClient);
+        }
+        await whatsappClient.sendTextMessage(phone, 'Votre panier est vide. Ajoutez d\'abord des produits.');
+        return;
+      }
+
       // If there's a cached catalogue, try to interpret as a product selection
       const cached = (session as Session & { _catalogue?: ProduitDisponible[] })._catalogue;
       if (cached && cached.length > 0) {
         const selection = parseSelectionProduit(text);
         if (selection && selection.index <= cached.length) {
           const produit = cached[selection.index - 1];
-          const added = await addProduitToPanier(phone, session, produit!, selection.quantite, whatsappClient);
+          const added = await addOuRemplacerProduit(phone, session, produit!, selection.quantite, whatsappClient);
           if (added) {
             await whatsappClient.sendTextMessage(phone, formatPanier(session));
             await whatsappClient.sendTextMessage(
@@ -377,6 +399,25 @@ export async function handleIncomingMessage(
               'Ajouter un autre produit (tapez son numéro), ou :\n• *confirmer* — valider la commande\n• *panier* — voir le panier\n• *menu* — revenir au menu',
             );
           }
+          return;
+        }
+      }
+
+      // NLU pour détecter intentions dans CATALOGUE
+      const nluCat = await classifyText(text);
+      if (nluCat.score >= NLU_SCORE_SEUIL) {
+        if (nluCat.intent === 'CONFIRMER_COMMANDE' && session.panier.length > 0) {
+          session.step = 'CONFIRMATION';
+          return handleConfirmation(phone, session, sessionStore, kiosqApi, whatsappClient);
+        }
+        if (nluCat.intent === 'ANNULER') {
+          session.step = 'MENU_PRINCIPAL';
+          await whatsappClient.sendTextMessage(phone, menuPrincipalText(session.clientNom));
+          return;
+        }
+        if (nluCat.intent === 'MODIFIER_PANIER') {
+          session.step = 'PANIER';
+          await whatsappClient.sendTextMessage(phone, formatPanier(session));
           return;
         }
       }
@@ -423,6 +464,13 @@ export async function handleIncomingMessage(
         return handleCatalogue(phone, session, sessionStore, kiosqApi, whatsappClient, nlu.produit ?? null);
       }
 
+      // Si l'utilisateur tape un numéro depuis le panier → aller au catalogue
+      const numPanier = parseInt(text.trim(), 10);
+      if (!isNaN(numPanier) && numPanier >= 1) {
+        session.step = 'CATALOGUE';
+        return handleCatalogue(phone, session, sessionStore, kiosqApi, whatsappClient, null);
+      }
+
       // Show cart summary with options
       await whatsappClient.sendTextMessage(phone, formatPanier(session));
       await whatsappClient.sendTextMessage(
@@ -435,14 +483,61 @@ export async function handleIncomingMessage(
     // ── SUIVI ────────────────────────────────────────────────────────────
     if (session.step === 'SUIVI') {
       const lower = text.toLowerCase();
-      if (lower === 'menu' || lower === 'retour') {
+
+      if (lower === 'menu' || lower === 'retour' || text.trim() === '4') {
         session.step = 'MENU_PRINCIPAL';
         await whatsappClient.sendTextMessage(phone, menuPrincipalText(session.clientNom));
         return;
       }
 
+      // Raccourcis menu depuis SUIVI
+      if (text.trim() === '1') {
+        session.step = 'CATALOGUE';
+        return handleCatalogue(phone, session, sessionStore, kiosqApi, whatsappClient, null);
+      }
+      if (text.trim() === '2') {
+        session.step = 'PANIER';
+        await whatsappClient.sendTextMessage(phone, formatPanier(session));
+        await whatsappClient.sendTextMessage(
+          phone,
+          session.panier.length > 0
+            ? 'Pour confirmer répondez *confirmer*. Pour annuler répondez *annuler*.'
+            : 'Votre panier est vide. Répondez *catalogue* pour voir les produits.',
+        );
+        return;
+      }
+
       if (lower === 'mes commandes' || lower === 'liste') {
         return handleSuiviListe(phone, session, kiosqApi, whatsappClient);
+      }
+
+      // NLU pour détecter les intentions depuis SUIVI
+      const nluSuivi = await classifyText(text);
+      if (nluSuivi.score >= NLU_SCORE_SEUIL) {
+        switch (nluSuivi.intent) {
+          case 'PARCOURIR_CATALOGUE':
+          case 'AJOUTER_PRODUIT':
+            session.step = 'CATALOGUE';
+            return handleCatalogue(phone, session, sessionStore, kiosqApi, whatsappClient, nluSuivi.produit ?? null);
+          case 'CONFIRMER_COMMANDE':
+          case 'MODIFIER_PANIER':
+            session.step = 'PANIER';
+            await whatsappClient.sendTextMessage(phone, formatPanier(session));
+            return;
+          case 'ANNULER':
+            session.step = 'MENU_PRINCIPAL';
+            await whatsappClient.sendTextMessage(phone, menuPrincipalText(session.clientNom));
+            return;
+        }
+      }
+
+      // Si ça ressemble à un numéro de commande (contient CMD ou DEV ou des chiffres longs)
+      const looksLikeOrderNumber = /CMD|DEV/i.test(text) || /^\d{5,}$/.test(text.trim());
+      if (!looksLikeOrderNumber && text.trim().length < 5) {
+        // Trop court pour être un numéro de commande — retourner au menu
+        session.step = 'MENU_PRINCIPAL';
+        await whatsappClient.sendTextMessage(phone, menuPrincipalText(session.clientNom));
+        return;
       }
 
       // Interpret as a commande number/id
@@ -548,6 +643,46 @@ async function handleCatalogue(
 }
 
 /**
+ * Extrait un nom propre depuis une phrase de présentation.
+ * "je suis Seth AGBA"       → "Seth Agba"
+ * "tu peux dire Seth AGBA"  → "Seth Agba"
+ * "mon nom est Seth"         → "Seth"
+ * "c'est Seth AGBA"          → "Seth Agba"
+ * "Seth AGBA"                → "Seth Agba"
+ */
+function extraireNom(input: string): string {
+  const text = input.trim();
+  const patterns = [
+    /je\s+suis\s+(.+)/i,
+    /je\s+m['']?appelle\s+(.+)/i,
+    /mon\s+nom\s+(?:est|c['']?est)\s+(.+)/i,
+    /(?:tu\s+peux\s+(?:m['']?appeler|dire)|appelez?\s+moi|call\s+me)\s+(.+)/i,
+    /c['']?est\s+(.+)/i,
+    /nom\s*[:]\s*(.+)/i,
+    /^(?:moi\s+c['']?est|c['']?est\s+moi)\s+(.+)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) {
+      return titreCase(match[1].trim());
+    }
+  }
+  // Si ça ressemble déjà à un nom (1-3 mots, pas de verbes courants), on le prend tel quel
+  const mots = text.split(/\s+/);
+  const motsFonction = /^(je|tu|il|elle|nous|vous|ils|elles|mon|ma|mes|le|la|les|un|une|des|est|sont|suis|peux|peut|veux|veut|fais|fait)$/i;
+  const estNomDirect = mots.length <= 3 && !mots.some(m => motsFonction.test(m));
+  if (estNomDirect) {
+    return titreCase(text);
+  }
+  // Sinon retourner null pour redemander
+  return '';
+}
+
+function titreCase(s: string): string {
+  return s.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+}
+
+/**
  * Parse a user input like "1", "2 x3", "3 5kg" into { index, quantite }.
  * Returns null if parsing fails.
  */
@@ -565,6 +700,7 @@ function parseSelectionProduit(input: string): { index: number; quantite: number
 
 /**
  * Add a product to the session cart, checking stock (Req 4.5).
+ * Accumulates quantity if product already in cart.
  */
 async function addProduitToPanier(
   phone: string,
@@ -607,6 +743,51 @@ async function addProduitToPanier(
 }
 
 /**
+ * Replace (not accumulate) the quantity of a product in the cart.
+ * Used when the user re-selects a product from the catalogue — sets the
+ * quantity to the new value instead of adding to the existing one.
+ */
+async function addOuRemplacerProduit(
+  phone: string,
+  session: Session,
+  produit: ProduitDisponible,
+  quantite: number,
+  whatsappClient: WhatsappClient,
+): Promise<boolean> {
+  if (quantite > produit.stockActuel) {
+    await whatsappClient.sendTextMessage(
+      phone,
+      `Stock insuffisant. Stock actuel : ${produit.stockActuel} ${produit.unite}.`,
+    );
+    return false;
+  }
+
+  const existing = session.panier.find((l) => l.produitId === produit.id);
+  if (existing) {
+    // Replace quantity instead of accumulating
+    existing.quantite = quantite;
+    existing.totalLigne = existing.prixUnitaire * quantite;
+    await whatsappClient.sendTextMessage(
+      phone,
+      `Quantité de *${produit.designation}* mise à jour : ${quantite} ${produit.unite}.`,
+    );
+  } else {
+    session.panier.push({
+      produitId: produit.id,
+      designation: produit.designation,
+      prixUnitaire: produit.prixVente,
+      quantite,
+      totalLigne: produit.prixVente * quantite,
+    });
+    await whatsappClient.sendTextMessage(
+      phone,
+      `✅ *${produit.designation}* × ${quantite} ajouté au panier.`,
+    );
+  }
+  return true;
+}
+
+/**
  * Handle CONFIRMATION step: show cart summary, ask for confirmation,
  * then create order via API with one retry on 5xx (Req 5.1, 5.4, 5.5).
  */
@@ -635,23 +816,21 @@ async function handleConfirmation(
 
   // Build the commande payload
   const lignes: LigneCommande[] = session.panier.map((l) => ({
-    produitId: l.produitId,
-    designation: l.designation,
-    unite: '',
-    quantite: l.quantite,
+    produitId:    l.produitId,
+    produitRef:   '',
+    produitNom:   l.designation,
+    quantite:     l.quantite,
     prixUnitaire: l.prixUnitaire,
-    remise: 0,
-    total: l.totalLigne,
+    remise:       0,
+    total:        l.totalLigne,
   }));
 
   const payload: CommandePayload = {
     clientId: session.clientId,
-    clientNom: session.clientNom ?? 'Client WhatsApp',
     lignes,
     totalHT,
     tva: session.tvaRate,
     totalTTC,
-    statut: 'brouillon',
     notes: 'Commande via WhatsApp',
   };
 

@@ -1,4 +1,4 @@
-import type { IntentName, NluResult, SessionStep } from './types.ts';
+import type { IntentName, NluResult, SessionStep } from './types.js';
 
 const VALID_INTENTS = new Set<IntentName>([
   'PARCOURIR_CATALOGUE',

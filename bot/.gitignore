@@ -2,7 +2,6 @@
 .env.local
 whatsapp/.env
 whatsapp/.env.local
-
 # whatsapp-web.js cache and session data
 .wwebjs_cache/
 .wwebjs_auth/

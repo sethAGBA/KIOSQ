@@ -1,28 +1,30 @@
-# Stage 1 — builder
-# Build context: bot/ directory
-# Usage: docker build -f whatsapp/Dockerfile .  (run from bot/)
+# =============================================================================
+# Bot WhatsApp Kiosq — Image Docker multi-stage
+# Build context : répertoire bot/
+# Usage         : docker build -f whatsapp/Dockerfile -t kiosq-whatsapp-bot .
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1 — builder : compile TypeScript → JS
+# -----------------------------------------------------------------------------
 FROM node:22-slim AS builder
 
 WORKDIR /app
 
-# Install all dependencies (including devDependencies for tsc)
 COPY package*.json ./
 RUN npm ci
 
-# Copy all source files needed for the build
 COPY . .
-
-# Compile TypeScript → dist/
 RUN npm run build:whatsapp
 
-# Stage 2 — runtime
-# whatsapp-web.js requires Chromium/Puppeteer → use the full slim image
-# and install the necessary system libraries.
+# -----------------------------------------------------------------------------
+# Stage 2 — runtime : image finale avec Chromium pour whatsapp-web.js
+# -----------------------------------------------------------------------------
 FROM node:22-slim AS runtime
 
 WORKDIR /app
 
-# Install Chromium dependencies required by Puppeteer (whatsapp-web.js)
+# Dépendances système requises par Puppeteer / Chromium
 RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     fonts-liberation \
@@ -44,21 +46,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
  && rm -rf /var/lib/apt/lists/*
 
-# Tell Puppeteer to use the system Chromium instead of downloading its own
+# Pointer whatsapp-web.js vers Chromium du système (pas de téléchargement Puppeteer)
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-# Install production dependencies only
+# Dépendances de production uniquement
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-# Copy compiled output from builder stage
+# Copier le JS compilé depuis le builder
 COPY --from=builder /app/dist ./dist
 
-# Persistent volume for WhatsApp session data (avoids QR scan on every restart)
+# Volume persistant pour la session WhatsApp (évite le QR code à chaque redémarrage)
 VOLUME ["/app/.wwebjs_auth"]
 
-# Run as non-root user
+# Exécuter en non-root
 USER node
 
 EXPOSE 3002

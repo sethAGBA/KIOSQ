@@ -120,8 +120,8 @@ export interface ParametresTenant {
 
 export interface LigneCommande {
   produitId: string;
-  designation: string;
-  unite: string;
+  produitRef: string;    // référence produit (peut être vide)
+  produitNom: string;    // nom du produit
   quantite: number;
   prixUnitaire: number;
   remise: number;  // always 0 from the bot
@@ -130,11 +130,9 @@ export interface LigneCommande {
 
 export interface CommandePayload {
   clientId: string | null;
-  clientNom: string;
   lignes: LigneCommande[];
   totalHT: number;
   tva: number;       // rate (e.g. 18)
-  totalTTC: number;  // totalHT * (1 + tva/100)
-  statut: 'brouillon';
+  totalTTC: number;
   notes: string;     // "Commande via WhatsApp"
 }

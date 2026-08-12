@@ -14,10 +14,13 @@
  *   - createWhatsappClient()  (factory used by index.ts)
  */
 
-// whatsapp-web.js is a CJS module — access via default export when using ESM
-import wwebjs from 'whatsapp-web.js';
-const { Client, NoAuth } = wwebjs;
-import qrcode from 'qrcode-terminal';
+// whatsapp-web.js is a CJS module — use createRequire to import from ESM
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const wwebjs = require('whatsapp-web.js') as any;
+const { Client, LocalAuth } = wwebjs;
+const qrcode = require('qrcode-terminal') as { generate: (qr: string, opts?: { small?: boolean }) => void };
 
 /** Section row — kept for interface compatibility with former Meta Cloud API client. */
 export interface SectionRow {
@@ -41,19 +44,48 @@ export interface Section {
  *   await client.sendTextMessage('22890000000', 'Bonjour !');
  */
 export class WhatsappWebClient {
-  private client: Client;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private client: any;
   private ready = false;
 
   constructor() {
+    // En prod (Docker/Railway), PUPPETEER_EXECUTABLE_PATH pointe vers Chromium du conteneur.
+    // En dev macOS, on utilise Chrome installé localement.
+    const executablePath =
+      process.env.PUPPETEER_EXECUTABLE_PATH ??
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+
     this.client = new Client({
-      authStrategy: new NoAuth(),
+      authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
       puppeteer: {
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        executablePath,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--disable-gpu',
+          '--disable-software-rasterizer',
+          '--disable-extensions',
+        ],
       },
+      authTimeoutMs: 120_000,
+      qrMaxRetries: 5,
+      restartOnAuthFail: true,
     });
 
-    this.client.on('qr', (qr) => {
+    this.client.on('loading_screen', (percent: number, message: string) => {
+      console.log('[whatsapp] Chargement...', percent, '%', message);
+    });
+
+    this.client.on('authenticated', () => {
+      console.log('[whatsapp] Authentifié — démarrage en cours...');
+    });
+
+    this.client.on('qr', (qr: string) => {
       console.log('\n[whatsapp] Scannez ce QR code avec WhatsApp sur votre téléphone :\n');
       qrcode.generate(qr, { small: true });
     });
@@ -63,18 +95,18 @@ export class WhatsappWebClient {
       console.log('[whatsapp] Client connecté et prêt.');
     });
 
-    this.client.on('auth_failure', (msg) => {
+    this.client.on('auth_failure', (msg: string) => {
       console.error('[whatsapp] Échec d\'authentification :', msg);
     });
 
-    this.client.on('disconnected', (reason) => {
+    this.client.on('disconnected', (reason: string) => {
       this.ready = false;
       console.warn('[whatsapp] Client déconnecté :', reason);
       // Auto-reconnect after 5s unless it was a deliberate LOGOUT
       if (reason !== 'LOGOUT') {
         console.log('[whatsapp] Reconnexion dans 5 secondes…');
         setTimeout(() => {
-          this.client.initialize().catch((err) =>
+          this.client.initialize().catch((err: unknown) =>
             console.error('[whatsapp] Erreur reconnexion :', err),
           );
         }, 5000);

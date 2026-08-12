@@ -106,7 +106,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         dateValidite:     parsed.data.dateValidite  ? new Date(parsed.data.dateValidite)  : null,
         adresseLivraison: parsed.data.adresseLivraison,
         notes:            parsed.data.notes,
-        createdBy:        ctx.sub,
+        createdBy:        ctx.sub.startsWith('bot') ? null : ctx.sub,
       }).returning();
       return ok(res, numericRow(row), 201);
     } catch (e) {
