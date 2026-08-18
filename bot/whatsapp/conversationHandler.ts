@@ -694,7 +694,7 @@ function parseSelectionProduit(input: string): { index: number; quantite: number
   if (isNaN(idx) || idx < 1) return null;
   // Extract first numeric part from second token (handles "2kg", "3 kg", etc.)
   const rawQty = parts[1] ? parts[1].replace(/[^\d.]/g, '') : '1';
-  const qty = parseFloat(rawQty);
+  const qty = Math.round(parseFloat(rawQty));
   return { index: idx, quantite: isNaN(qty) || qty < 1 ? 1 : qty };
 }
 
@@ -826,7 +826,7 @@ async function handleConfirmation(
   }));
 
   const payload: CommandePayload = {
-    clientId: session.clientId,
+    ...(session.clientId !== null && { clientId: session.clientId }),
     lignes,
     totalHT,
     tva: session.tvaRate,

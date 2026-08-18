@@ -129,7 +129,7 @@ export interface LigneCommande {
 }
 
 export interface CommandePayload {
-  clientId: string | null;
+  clientId?: string | null;
   lignes: LigneCommande[];
   totalHT: number;
   tva: number;       // rate (e.g. 18)

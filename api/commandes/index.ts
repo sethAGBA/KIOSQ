@@ -19,7 +19,7 @@ const LigneSchema = z.object({
 
 const CommandeSchema = z.object({
   type:             z.enum(['commande', 'devis']).default('commande'),
-  clientId:         z.string().optional(),
+  clientId:         z.string().nullable().optional(),
   commercial:       z.string().optional(),
   lignes:           z.array(LigneSchema),
   totalHT:          z.number().min(0),
