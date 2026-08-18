@@ -22,9 +22,10 @@ async function main() {
   app.use(express.json());
   app.use(cookieParser());
 
-  // CORS pour Vite
+  // CORS — en prod on lit ALLOWED_ORIGIN, en dev on accepte localhost:5173
+  const allowedOrigin = process.env.ALLOWED_ORIGIN ?? 'http://localhost:5173';
   app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -161,25 +162,19 @@ async function main() {
   });
   app.all('/api/templates', adapt('./api/templates/index.ts'));
 
-  const PORT = 3001;
-  app.listen(PORT, () => {
-    console.log(`\n🚀 API server ready at http://localhost:${PORT}`);
-    console.log('   Routes disponibles :');
-    console.log('   POST   /api/auth/login');
-    console.log('   GET    /api/clients');
-    console.log('   GET    /api/produits');
-    console.log('   GET    /api/commandes');
-    console.log('   GET    /api/factures');
-    console.log('   PATCH  /api/factures/:id       → mise à jour / annulation');
-    console.log('   POST   /api/factures/:id/retour → retour client');
-    console.log('   POST   /api/pos/vente           → encaissement POS');
-    console.log('   GET    /api/dashboard/stats     → statistiques dashboard');
-    console.log('   GET    /api/parametres          → paramètres entreprise');
-    console.log('   PATCH  /api/parametres          → modifier paramètres');
-    console.log('   GET    /api/unites              → unités de mesure');
-    console.log('   GET    /api/leads              → leads (capture)');
-    console.log('   GET    /api/groupes-surveilles → groupes Facebook\n');
+  // Servir le frontend React (fichiers statiques buildés)
+  import { fileURLToPath } from 'url';
+  import { dirname, join } from 'path';
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  const distPath = join(__dirname, 'dist');
+  app.use(express.static(distPath));
+  app.get('*', (_req, res) => {
+    res.sendFile(join(distPath, 'index.html'));
   });
-}
+
+  const PORT = Number(process.env.PORT ?? 3001);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`\n🚀 API server ready at http://localhost:${PORT}`);
+  });
 
 main().catch(console.error);
