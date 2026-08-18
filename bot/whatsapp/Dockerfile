@@ -57,9 +57,6 @@ RUN npm ci --omit=dev
 # Copier le JS compilé depuis le builder
 COPY --from=builder /app/dist ./dist
 
-# Volume persistant pour la session WhatsApp (évite le QR code à chaque redémarrage)
-VOLUME ["/app/.wwebjs_auth"]
-
 # Exécuter en non-root
 USER node
 
