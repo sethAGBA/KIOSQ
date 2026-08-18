@@ -57,6 +57,9 @@ RUN npm ci --omit=dev
 # Copier le JS compilé depuis le builder
 COPY --from=builder /app/dist ./dist
 
+# Créer le dossier de session et donner les permissions à l'utilisateur node
+RUN mkdir -p /app/.wwebjs_auth && chown -R node:node /app/.wwebjs_auth
+
 # Exécuter en non-root
 USER node
 
