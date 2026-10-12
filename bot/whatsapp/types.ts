@@ -5,6 +5,7 @@ export type SessionStep =
   | 'MENU_PRINCIPAL'
   | 'CATALOGUE'
   | 'PANIER'
+  | 'LIVRAISON'
   | 'CONFIRMATION'
   | 'SUIVI';
 
@@ -28,6 +29,7 @@ export interface Session {
   devise: string;             // tenant currency (e.g. "XOF")
   lastActivity: number;       // Date.now() at last message
   pendingNomCapture: boolean; // true while waiting for a new client's name
+  adresseLivraison?: string | null; // adresse de livraison du client
 }
 
 // ─── WhatsApp Cloud API webhook payloads ─────────────────────────────────────
@@ -57,6 +59,8 @@ export interface IncomingMessage {
   text?: { body: string };
   image?: { id: string; mime_type: string; caption?: string };
   document?: { id: string; filename?: string; caption?: string };
+  audio?: { dataBase64: string; mimeType: string };
+  location?: { latitude: number; longitude: number; name?: string; address?: string };
 }
 
 export interface MessageStatus {
@@ -68,21 +72,37 @@ export interface MessageStatus {
 
 // ─── NLU (Gemini) ─────────────────────────────────────────────────────────────
 
+export interface ArticleCommande {
+  produit: string;
+  quantite: number;
+  action?: 'ajouter' | 'supprimer' | 'modifier';
+}
+
 export type IntentName =
   | 'PARCOURIR_CATALOGUE'
   | 'AJOUTER_PRODUIT'
+  | 'COMMANDE_DIRECTE'
   | 'CONFIRMER_COMMANDE'
   | 'VOIR_STATUT'
   | 'MODIFIER_PANIER'
+  | 'SUPPRIMER_ARTICLE'
   | 'ANNULER'
+  | 'LIVRAISON'
+  | 'QUESTION_PRODUIT'
+  | 'SALUTATION'
   | 'AIDE'
   | 'INCONNU';
 
 export interface NluResult {
   intent: IntentName;
   score: number;               // 0–1 confidence
-  produit?: string | null;     // detected product name
-  quantite?: number | null;    // detected quantity
+  produit?: string | null;     // single product (backward compat)
+  quantite?: number | null;    // single quantity (backward compat)
+  articles?: ArticleCommande[]; // multi-product support
+  reponseSuggeree?: string | null; // réponse conversationnelle naturelle formulée par Gemini
+  numeroCommande?: string | null; // numéro de commande détecté
+  adresse?: string | null;        // adresse de livraison détectée
+  transcriptionAudio?: string | null; // texte transcrit si message vocal
 }
 
 // ─── Kiosq API return types ───────────────────────────────────────────────────

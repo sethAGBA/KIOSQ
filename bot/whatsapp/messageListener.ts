@@ -2,9 +2,11 @@
  * messageListener.ts — Bridges whatsapp-web.js message events to the
  * conversation handler.
  *
- * Replaces the Meta Cloud API webhook (webhook.ts + server.ts).
- * Instead of receiving HTTP POST events from Meta, we listen directly to
- * whatsapp-web.js 'message' events on the Client instance.
+ * Listens directly to whatsapp-web.js 'message' events:
+ *   - Text chats ('chat')
+ *   - Voice notes ('ptt', 'audio') with automatic download & base64 encoding
+ *   - Location sharing ('location')
+ *   - Images ('image')
  */
 
 import { RateLimiter } from './security.js';
@@ -41,8 +43,16 @@ export function registerMessageListener(
       return;
     }
 
-    // Only handle text, image, document
-    if (msg.type !== 'chat' && msg.type !== 'image' && msg.type !== 'document') {
+    // Handle text, voice note / audio, location, and images
+    const isSupportedType =
+      msg.type === 'chat' ||
+      msg.type === 'ptt' ||
+      msg.type === 'audio' ||
+      msg.type === 'location' ||
+      msg.type === 'image' ||
+      msg.type === 'document';
+
+    if (!isSupportedType) {
       return;
     }
 
@@ -59,13 +69,55 @@ export function registerMessageListener(
       return;
     }
 
-    // Adapt wwebjs Message to our internal IncomingMessage type
+    // Téléchargement du média pour les notes vocales
+    let audioData: { dataBase64: string; mimeType: string } | undefined = undefined;
+    if ((msg.type === 'ptt' || msg.type === 'audio') && msg.hasMedia) {
+      try {
+        const media = await msg.downloadMedia();
+        if (media && media.data) {
+          audioData = {
+            dataBase64: media.data,
+            mimeType: media.mimetype || 'audio/ogg',
+          };
+          console.log('[messageListener] Note vocale reçue et téléchargée (taille base64:', media.data.length, 'bytes)');
+        }
+      } catch (err) {
+        console.warn('[messageListener] Impossible de télécharger la note vocale:', err);
+      }
+    }
+
+    // Données de localisation
+    let locationData: { latitude: number; longitude: number; name?: string; address?: string } | undefined = undefined;
+    if (msg.type === 'location' && msg.location) {
+      locationData = {
+        latitude: msg.location.latitude,
+        longitude: msg.location.longitude,
+        name: msg.location.name,
+        address: msg.location.address || msg.location.description,
+      };
+      console.log('[messageListener] Position reçue:', locationData.latitude, locationData.longitude);
+    }
+
+    // Type normalisé
+    let normalizedType: IncomingMessage['type'] = 'text';
+    if (msg.type === 'ptt' || msg.type === 'audio') {
+      normalizedType = 'audio';
+    } else if (msg.type === 'location') {
+      normalizedType = 'location';
+    } else if (msg.type === 'image') {
+      normalizedType = 'image';
+    } else if (msg.type === 'document') {
+      normalizedType = 'document';
+    }
+
     const incomingMessage: IncomingMessage = {
       from: phone,
       id: msg.id._serialized as string,
       timestamp: String(msg.timestamp),
-      type: msg.type === 'chat' ? 'text' : (msg.type as 'image' | 'document'),
-      text: msg.type === 'chat' ? { body: msg.body as string } : undefined,
+      type: normalizedType,
+      text: msg.body ? { body: msg.body as string } : undefined,
+      audio: audioData,
+      location: locationData,
     };
 
     try {
@@ -75,5 +127,5 @@ export function registerMessageListener(
     }
   });
 
-  console.log('[messageListener] Écoute des messages WhatsApp activée.');
+  console.log('[messageListener] Écoute des messages WhatsApp activée (Texte, Audio/Vocaux, Localisation).');
 }
