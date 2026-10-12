@@ -8,8 +8,7 @@
     "declaration": false,
     "sourceMap": false,
     "strict": true,
-    "esModuleInterop": false,
-    "ignoreDeprecations": "6.0",
+    "esModuleInterop": true,
     "skipLibCheck": true
   },
   "include": [
