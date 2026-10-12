@@ -1,6 +1,5 @@
 /**
- * Local dev server — émule les API routes Vercel avec Express.
- * Lance avec : npx tsx --env-file=.env.local server.ts
+ * Server Express — émule et sert toutes les API routes de api/ et le frontend Vite.
  */
 import express from 'express';
 import cookieParser from 'cookie-parser';
@@ -16,7 +15,9 @@ const __dirname = path.dirname(__filename);
 function adapt(handlerPath: string) {
   return async (req: Request, res: Response) => {
     // Vercel injecte les params de route dans req.query via son runtime.
-    // On les extrait du path et on les met dans req.query manuellement.
+    if (req.params) {
+      req.query = { ...req.params, ...(req.query || {}) };
+    }
     const mod = await import(handlerPath);
     const handler = mod.default ?? mod;
     await handler(req as never, res as never);
@@ -39,134 +40,50 @@ async function main() {
     next();
   });
 
-  // ── Auth ────────────────────────────────────────────────
-  app.post('/api/auth/login',  adapt('./api/auth/login.ts'));
-  app.get ('/api/auth/me',     adapt('./api/auth/me.ts'));
-  app.post('/api/auth/logout', adapt('./api/auth/logout.ts'));
+  // ── Enregistrement automatique de toutes les routes Vercel dans api/ ───
+  function registerApiRoutes() {
+    function walk(dir: string): string[] {
+      let results: string[] = [];
+      const list = fs.readdirSync(dir, { withFileTypes: true });
+      for (const item of list) {
+        if (item.name.startsWith('_') || item.name.endsWith('.test.ts') || item.name === 'tsconfig.json') continue;
+        const full = path.join(dir, item.name);
+        if (item.isDirectory()) {
+          results = results.concat(walk(full));
+        } else if (item.name.endsWith('.ts')) {
+          results.push(full);
+        }
+      }
+      return results;
+    }
 
-  // ── Clients ─────────────────────────────────────────────
-  app.all('/api/clients/:id', async (req, res) => {
-    const { default: handler } = await import('./api/clients/[id].ts');
-    await handler(req as never, res as never);
-  });
-  app.all('/api/clients', adapt('./api/clients/index.ts'));
+    const files = walk('api');
 
-  // ── Produits ─────────────────────────────────────────────
-  app.all('/api/produits/:id', async (req, res) => {
-    const { default: handler } = await import('./api/produits/[id].ts');
-    await handler(req as never, res as never);
-  });
-  app.all('/api/produits', adapt('./api/produits/index.ts'));
+    // Tri pour que les routes spécifiques viennent avant les routes avec paramètres (:id)
+    files.sort((a, b) => {
+      const aParts = a.split(path.sep).length;
+      const bParts = b.split(path.sep).length;
+      if (aParts !== bParts) return bParts - aParts; // sous-dossiers plus profonds en premier
+      const aParam = a.includes('[');
+      const bParam = b.includes('[');
+      if (aParam !== bParam) return aParam ? 1 : -1; // routes statiques avant les routes paramétrées
+      return a.localeCompare(b);
+    });
 
-  // ── Commandes ────────────────────────────────────────────
-  app.all('/api/commandes/:id', async (req, res) => {
-    const { default: handler } = await import('./api/commandes/[id].ts');
-    await handler(req as never, res as never);
-  });
-  app.all('/api/commandes', adapt('./api/commandes/index.ts'));
+    for (const f of files) {
+      const rel = f.replace(/\\/g, '/');
+      const route = '/' + rel
+        .replace(/\.ts$/, '')
+        .replace(/\/index$/, '')
+        .replace(/\[(\w+)\]/g, ':$1');
+      const handlerPath = './' + rel;
+      app.all(route, adapt(handlerPath));
+    }
 
-  // ── Factures ─────────────────────────────────────────────
-  // Sub-routes FIRST — must come before the /:id catch-all in Express
-  app.post('/api/factures/:id/retour', async (req, res) => {
-    req.query.id = req.params.id;
-    const { default: handler } = await import('./api/factures/[id]/retour.ts');
-    await handler(req as never, res as never);
-  });
-  app.all('/api/factures/:id', async (req, res) => {
-    const { default: handler } = await import('./api/factures/[id].ts');
-    await handler(req as never, res as never);
-  });
-  app.all('/api/factures', adapt('./api/factures/index.ts'));
+    console.log(`   ✓ ${files.length} routes API enregistrées dynamiquement depuis api/`);
+  }
 
-  // ── POS : encaissement ───────────────────────────────────
-  app.post('/api/pos/vente', adapt('./api/pos/vente.ts'));
-
-  // ── Dashboard Stats ──────────────────────────────────────
-  app.get('/api/dashboard/stats', adapt('./api/dashboard/stats/index.ts'));
-
-  // ── Fournisseurs ─────────────────────────────────────────
-  app.all('/api/fournisseurs/:id', async (req, res) => {
-    req.query.id = req.params.id;
-    const { default: handler } = await import('./api/fournisseurs/[id].ts');
-    await handler(req as never, res as never);
-  });
-  app.all('/api/fournisseurs', adapt('./api/fournisseurs/index.ts'));
-
-  // ── Catégories ───────────────────────────────────────────
-  app.all('/api/categories/:id', async (req, res) => {
-    req.query.id = req.params.id;
-    const { default: handler } = await import('./api/categories/[id].ts');
-    await handler(req as never, res as never);
-  });
-  app.all('/api/categories', adapt('./api/categories/index.ts'));
-
-  // ── Notifications ────────────────────────────────────────
-  app.get('/api/notifications', adapt('./api/notifications/index.ts'));
-
-  // ── Paramètres ───────────────────────────────────────────
-  app.all('/api/parametres', adapt('./api/parametres/index.ts'));
-
-  // ── Unités ───────────────────────────────────────────────
-  app.all('/api/unites/:id', async (req, res) => {
-    req.query.id = req.params.id;
-    const { default: handler } = await import('./api/unites/[id].ts');
-    await handler(req as never, res as never);
-  });
-  app.all('/api/unites', adapt('./api/unites/index.ts'));
-
-  // ── Utilisateurs ─────────────────────────────────────────
-  app.all('/api/utilisateurs/:id', async (req, res) => {
-    req.query.id = req.params.id;
-    const { default: handler } = await import('./api/utilisateurs/[id].ts');
-    await handler(req as never, res as never);
-  });
-  app.all('/api/utilisateurs', adapt('./api/utilisateurs/index.ts'));
-
-  // ── Leads ────────────────────────────────────────────────
-  app.post('/api/leads/:id/convertir', async (req, res) => {
-    req.query.id = req.params.id;
-    const { default: handler } = await import('./api/leads/[id]/convertir.ts');
-    await handler(req as never, res as never);
-  });
-  app.all('/api/leads/:id', async (req, res) => {
-    req.query.id = req.params.id;
-    const { default: handler } = await import('./api/leads/[id].ts');
-    await handler(req as never, res as never);
-  });
-  app.all('/api/leads', adapt('./api/leads/index.ts'));
-
-  // ── Multi-Tenant & Superadmin ────────────────────────────
-  app.get('/api/tenants/resolve', adapt('./api/tenants/resolve.ts'));
-  app.post('/api/auth/impersonate', adapt('./api/auth/impersonate.ts'));
-
-  app.all('/api/superadmin/tenants/:id/impersonate', async (req, res) => {
-    req.query.id = req.params.id;
-    const { default: handler } = await import('./api/superadmin/tenants/[id]/impersonate.ts');
-    await handler(req as never, res as never);
-  });
-  app.all('/api/superadmin/tenants/:id/clone', async (req, res) => {
-    req.query.id = req.params.id;
-    const { default: handler } = await import('./api/superadmin/tenants/[id]/clone.ts');
-    await handler(req as never, res as never);
-  });
-  app.all('/api/superadmin/tenants/:id', async (req, res) => {
-    req.query.id = req.params.id;
-    const { default: handler } = await import('./api/superadmin/tenants/[id].ts');
-    await handler(req as never, res as never);
-  });
-  app.all('/api/superadmin/tenants', adapt('./api/superadmin/tenants/index.ts'));
-  app.get('/api/superadmin/stats', adapt('./api/superadmin/stats.ts'));
-
-  app.all('/api/audit-logs', adapt('./api/audit-logs/index.ts'));
-  app.all('/api/abonnement', adapt('./api/abonnement/index.ts'));
-  app.all('/api/onboarding', adapt('./api/onboarding/index.ts'));
-
-  app.all('/api/templates/:id/import', async (req, res) => {
-    req.query.id = req.params.id;
-    const { default: handler } = await import('./api/templates/[id]/import.ts');
-    await handler(req as never, res as never);
-  });
-  app.all('/api/templates', adapt('./api/templates/index.ts'));
+  registerApiRoutes();
 
   // ── Servir le frontend statique Vite (production) ───────
   const distPath = path.resolve(__dirname, 'dist');
@@ -181,21 +98,6 @@ async function main() {
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n🚀 Kiosq server ready at http://0.0.0.0:${PORT}`);
-    console.log('   Routes disponibles :');
-    console.log('   POST   /api/auth/login');
-    console.log('   GET    /api/clients');
-    console.log('   GET    /api/produits');
-    console.log('   GET    /api/commandes');
-    console.log('   GET    /api/factures');
-    console.log('   PATCH  /api/factures/:id       → mise à jour / annulation');
-    console.log('   POST   /api/factures/:id/retour → retour client');
-    console.log('   POST   /api/pos/vente           → encaissement POS');
-    console.log('   GET    /api/dashboard/stats     → statistiques dashboard');
-    console.log('   GET    /api/parametres          → paramètres entreprise');
-    console.log('   PATCH  /api/parametres          → modifier paramètres');
-    console.log('   GET    /api/unites              → unités de mesure');
-    console.log('   GET    /api/leads              → leads (capture)');
-    console.log('   GET    /api/groupes-surveilles → groupes Facebook\n');
   });
 }
 
