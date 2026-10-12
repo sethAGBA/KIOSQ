@@ -14,9 +14,13 @@ const __dirname = path.dirname(__filename);
 // Adapte une fonction Vercel (VercelRequest/Response) pour Express
 function adapt(handlerPath: string) {
   return async (req: Request, res: Response) => {
-    // Vercel injecte les params de route dans req.query via son runtime.
     if (req.params) {
-      req.query = { ...req.params, ...(req.query || {}) };
+      const mergedQuery = { ...req.query, ...req.params };
+      Object.defineProperty(req, 'query', {
+        value: mergedQuery,
+        writable: true,
+        configurable: true,
+      });
     }
     const mod = await import(handlerPath);
     const handler = mod.default ?? mod;
