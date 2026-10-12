@@ -4,7 +4,13 @@
  */
 import express from 'express';
 import cookieParser from 'cookie-parser';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import type { Request, Response } from 'express';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Adapte une fonction Vercel (VercelRequest/Response) pour Express
 function adapt(handlerPath: string) {
@@ -22,12 +28,13 @@ async function main() {
   app.use(express.json());
   app.use(cookieParser());
 
-  // CORS pour Vite
+  // CORS
   app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
+    const origin = req.headers.origin || 'http://localhost:5173';
+    res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Tenant-ID');
     if (req.method === 'OPTIONS') return res.status(204).end();
     next();
   });
@@ -161,9 +168,19 @@ async function main() {
   });
   app.all('/api/templates', adapt('./api/templates/index.ts'));
 
-  const PORT = 3001;
-  app.listen(PORT, () => {
-    console.log(`\n🚀 API server ready at http://localhost:${PORT}`);
+  // ── Servir le frontend statique Vite (production) ───────
+  const distPath = path.resolve(__dirname, 'dist');
+  if (fs.existsSync(distPath)) {
+    app.use(express.static(distPath));
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api')) return next();
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
+
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`\n🚀 Kiosq server ready at http://0.0.0.0:${PORT}`);
     console.log('   Routes disponibles :');
     console.log('   POST   /api/auth/login');
     console.log('   GET    /api/clients');
