@@ -16,6 +16,7 @@
 
 // whatsapp-web.js is a CJS module — use createRequire to import from ESM
 import { createRequire } from 'node:module';
+import { updateQrState } from './healthServer.js';
 const require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const wwebjs = require('whatsapp-web.js') as any;
@@ -82,16 +83,24 @@ export class WhatsappWebClient {
     });
 
     this.client.on('authenticated', () => {
+      updateQrState(null, true);
       console.log('[whatsapp] Authentifié — démarrage en cours...');
     });
 
     this.client.on('qr', (qr: string) => {
-      console.log('\n[whatsapp] Scannez ce QR code avec WhatsApp sur votre téléphone :\n');
+      updateQrState(qr, false);
+      const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qr)}&size=360x360`;
+      console.log('\n============================================================');
+      console.log('📲 SCANNER LE QR CODE WHATSAPP :');
+      console.log('🔗 CLIQUEZ SUR CE LIEN POUR OUVRIR L\'IMAGE DU QR CODE :');
+      console.log(qrImageUrl);
+      console.log('============================================================\n');
       qrcode.generate(qr, { small: true });
     });
 
     this.client.on('ready', () => {
       this.ready = true;
+      updateQrState(null, true);
       console.log('[whatsapp] Client connecté et prêt.');
     });
 
@@ -101,6 +110,7 @@ export class WhatsappWebClient {
 
     this.client.on('disconnected', (reason: string) => {
       this.ready = false;
+      updateQrState(null, false);
       console.warn('[whatsapp] Client déconnecté :', reason);
       // Auto-reconnect after 5s unless it was a deliberate LOGOUT
       if (reason !== 'LOGOUT') {
