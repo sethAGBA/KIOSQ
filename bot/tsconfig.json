@@ -1,0 +1,3 @@
+{
+  "extends": "./whatsapp/tsconfig.json"
+}

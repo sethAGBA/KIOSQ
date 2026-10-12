@@ -4,9 +4,11 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "start": "tsx index.ts",
-    "start:whatsapp": "tsx whatsapp/index.ts",
-    "build": "tsc --noEmit",
+    "start": "node dist/whatsapp/index.js",
+    "start:dev": "tsx whatsapp/index.ts",
+    "start:whatsapp": "node dist/whatsapp/index.js",
+    "start:leads": "tsx index.ts",
+    "build": "tsc -p whatsapp/tsconfig.json",
     "build:whatsapp": "tsc -p whatsapp/tsconfig.json",
     "generate-jwt": "tsx generate-jwt.ts",
     "test": "vitest --run index.test.ts"

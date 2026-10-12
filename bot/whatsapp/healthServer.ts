@@ -14,7 +14,7 @@ import * as http from 'node:http';
  * @returns     The running http.Server instance.
  */
 export function startHealthServer(port?: number): http.Server {
-  const listenPort = port ?? parseInt(process.env.WHATSAPP_BOT_PORT ?? '3002', 10);
+  const listenPort = port ?? parseInt(process.env.PORT ?? process.env.WHATSAPP_BOT_PORT ?? '3002', 10);
 
   const server = http.createServer((req, res) => {
     if (req.method === 'GET' && req.url === '/health') {
