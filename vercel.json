@@ -1,16 +1,8 @@
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "tsc -p tsconfig.app.json && vite build",
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
-  ],
-  "headers": [
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-store" }
-      ]
-    }
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
