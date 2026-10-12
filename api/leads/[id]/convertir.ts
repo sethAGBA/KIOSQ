@@ -41,12 +41,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       : lead.texteOriginal.slice(0, 100);
 
   try {
-    // ── Generate client code (scoped to tenant) ────────────
-    const [{ value: clientCount }] = await db
-      .select({ value: count() })
-      .from(clients)
-      .where(eq(clients.tenantId, ctx.tenantId!));
-    const code = `CLI-${String(Number(clientCount) + 1).padStart(3, '0')}`;
+    // ── Generate client code ───────────────────────────────
+    const allClients = await db.select({ code: clients.code }).from(clients);
+    const existingCodes = new Set(allClients.map(c => c.code));
+    let maxNum = 0;
+    for (const c of allClients) {
+      const match = c.code.match(/^CLI-(\d+)$/);
+      if (match) {
+        const n = parseInt(match[1], 10);
+        if (n > maxNum) maxNum = n;
+      }
+    }
+    let nextNum = maxNum + 1;
+    let code = `CLI-${String(nextNum).padStart(3, '0')}`;
+    while (existingCodes.has(code)) {
+      nextNum++;
+      code = `CLI-${String(nextNum).padStart(3, '0')}`;
+    }
 
     // ── Create client ──────────────────────────────────────
     const [newClient] = await db.insert(clients).values({

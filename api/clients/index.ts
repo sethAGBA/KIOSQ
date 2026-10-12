@@ -59,8 +59,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const parsed = ClientSchema.safeParse(body);
     if (!parsed.success) return err(res, 'Données invalides', 422);
     try {
-      const count = await db.select().from(clients);
-      const code = `CLI-${String(count.length + 1).padStart(3, '0')}`;
+      const allClients = await db.select({ code: clients.code }).from(clients);
+      const existingCodes = new Set(allClients.map(c => c.code));
+      let maxNum = 0;
+      for (const c of allClients) {
+        const match = c.code.match(/^CLI-(\d+)$/);
+        if (match) {
+          const n = parseInt(match[1], 10);
+          if (n > maxNum) maxNum = n;
+        }
+      }
+      let nextNum = maxNum + 1;
+      let code = `CLI-${String(nextNum).padStart(3, '0')}`;
+      while (existingCodes.has(code)) {
+        nextNum++;
+        code = `CLI-${String(nextNum).padStart(3, '0')}`;
+      }
       const [row] = await db.insert(clients).values({
         id:        nanoid(),
         tenantId:  ctx.tenantId,
