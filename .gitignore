@@ -24,5 +24,6 @@ dist-ssr
 *.sw?
 .vercel
 .env*
+railway.env
 !.env.example
 !**/.env.example
